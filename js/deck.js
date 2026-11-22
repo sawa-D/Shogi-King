@@ -85,6 +85,7 @@ function renderDeck(){
     const ok = saveMyDeck(db.name.trim() || 'Myデッキ', db.cards);
     db.dirty = !ok; db.msg = ok ? '保存しました' : '保存できませんでした（ブラウザの設定を確認してください）';
     renderDeck();
+    showToast(ok ? `「${db.name.trim() || 'Myデッキ'}」を保存しました` : '保存できませんでした', !ok);
   };
 }
 
@@ -92,8 +93,12 @@ function confirmLeaveDeck(){
   showOverlay(`<h2>保存せずに戻りますか？</h2><p>変更した内容は失われます</p>
     <div class="btns"><button class="primary" id="dlSave">保存して戻る</button><button id="dlLeave">保存せずに戻る</button><button id="dlCancel">キャンセル</button></div>`);
   const valid = !deckErrors(db.cards).length;
-  if(!valid){ $('#dlSave').disabled = true; $('#dlSave').textContent = '保存して戻る（30枚ちょうどで保存できます）'; }
-  $('#dlSave').onclick = () => { if(saveMyDeck(db.name.trim() || 'Myデッキ', db.cards)) closeDeckBuilder(); };
+  if(!valid){ $('#dlSave').disabled = true; $('#dlSave').textContent = `保存して戻る（${CONFIG.DECK_SIZE}枚ちょうどで保存できます）`; }
+  $('#dlSave').onclick = () => {
+    const name = db.name.trim() || 'Myデッキ';
+    if(saveMyDeck(name, db.cards)){ closeDeckBuilder(); showToast(`「${name}」を保存しました`); }
+    else showToast('保存できませんでした', true);
+  };
   $('#dlLeave').onclick = closeDeckBuilder;
   $('#dlCancel').onclick = hideOverlay;
 }

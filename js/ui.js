@@ -145,6 +145,16 @@ function render(){
 }
 
 /* ---------- 画面 ---------- */
+// 画面中央に少しの間だけ出るお知らせ
+let toastTimer = null;
+function showToast(msg, isError){
+  let el = $('#toast');
+  if(!el){ el = document.createElement('div'); el.id = 'toast'; el.setAttribute('role','status'); document.body.appendChild(el); }
+  el.innerHTML = `<span class="ic">${isError ? '!' : '✓'}</span><span>${msg}</span>`;
+  el.className = 'show' + (isError ? ' err' : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.className = isError ? 'err' : ''; }, 1600);
+}
 function showOverlay(html){ const o=$('#overlay'); o.innerHTML = `<div class="box">${html}</div>`; o.classList.remove('hidden'); }
 function hideOverlay(){ $('#overlay').classList.add('hidden'); }
 function showTitle(){
