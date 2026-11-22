@@ -120,7 +120,7 @@ JavaScript は config → engine → cpu → storage → sound → match → onl
    ```
    - `wrangler login` でブラウザが開くので、Cloudflare にログインして「Allow」を押す
    - `wrangler deploy` が終わると `https://shogi-king-server.〇〇.workers.dev` というURLが表示される
-3. 表示されたURLを `js/online.js` の `SERVER: ''` に入れて push する
+3. 表示されたURLを `js/online.js` の `SERVER` に入れて push する（設定済み：https://shogi-king-server.sawa-d.workers.dev）
 4. ブラウザで `https://shogi-king-server.〇〇.workers.dev/health` を開き、`{"ok":true,...}` と出れば動いている
 
 サーバーのプログラムを変えたときは、server フォルダで `npx wrangler deploy` をもう一度実行する。

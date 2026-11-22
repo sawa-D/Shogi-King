@@ -7,7 +7,7 @@
    ===================================================================== */
 const ONLINE = {
   // 対戦サーバーのURL（デプロイ後に表示される https://〜.workers.dev を入れる）
-  SERVER: '',
+  SERVER: 'https://shogi-king-server.sawa-d.workers.dev',
 };
 // 動作確認用：ページのURLに ?server=http://127.0.0.1:8787 を付けると、そのサーバーを使う
 try { const q = new URLSearchParams(location.search).get('server'); if(q) ONLINE.SERVER = q.replace(/\/$/, ''); } catch(e){}
