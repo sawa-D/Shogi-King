@@ -49,17 +49,28 @@
 ```
 Shogi-King/
 ├─ index.html     画面の骨組み（これを開くと起動）
+├─ bgm/
+│  └─ bgm1.mp3    対局中のBGM
+├─ 効果音/
+│  └─ 将棋・駒を指す03.mp3   駒を動かしたときの音
 ├─ css/
 │  └─ style.css   見た目（色・大きさ・配置）
 └─ js/
    ├─ config.js   カードと数値の設定 ← バランス調整はここ
+   ├─ sound.js    BGMと効果音（使うファイル名と音量もここ）
    ├─ storage.js  データの保存（今は localStorage。オンライン化でDBに置き換える）
    ├─ game.js     ゲームの状態とルール（移動・援軍・指令・勝敗・デッキのチェック）
    ├─ cpu.js      CPUの思考
    ├─ ui.js       対戦画面の描画とタップ操作、メニュー
    └─ deck.js     Myデッキ（デッキビルド画面）
 ```
-JavaScript は config → storage → game → cpu → ui → deck の順に読み込まれます。
+JavaScript は config → storage → sound → game → cpu → ui → deck の順に読み込まれます。
+
+## 音について
+- 対局が始まるとBGMが流れ、対局が終わるかタイトルに戻ると止まる
+- 駒を動かすと（CPUの手も含めて）駒を指す音が鳴る
+- メニューの「BGM・効果音」でON/OFFを切り替えられる（設定は保存される）
+- スマホはタップしたときしか音を鳴らし始められないため、最初のタップで音の準備をしている
 
 ## データの保存について
 Myデッキはブラウザの localStorage に保存されます（端末・ブラウザごと）。

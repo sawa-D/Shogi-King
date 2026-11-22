@@ -85,6 +85,7 @@ function newGame(mode, first){
   for(const p of [0,1]) draw(p, CONFIG.HAND_START, true);
   log('対局開始！');
   hideOverlay();
+  startBgm();
   startTurn();
 }
 function draw(p, n, silent){
@@ -195,8 +196,9 @@ function doMove(p, fr, fc, tr, tc){
   const cap = st.board[tr][tc];
   st.board[tr][tc] = pc; st.board[fr][fc] = null;
   st.movesLeft--; st.moved = true; st.last = {fr,fc,tr,tc};
+  playSe('move');
   if(cap){
-    if(cap.type==='king'){ st.over = true; st.winner = p; log(`${pname(p)}が王を討ち取った！`); }
+    if(cap.type==='king'){ st.over = true; st.winner = p; stopBgm(); log(`${pname(p)}が王を討ち取った！`); }
     else { st.players[p].hand.push({id:cap.id,key:cap.type});
            log(`${pname(p)}：${CARDS[pc.type].name}が${CARDS[cap.type].name}を倒した（手札へ）`); }
   } else log(`${pname(p)}：${CARDS[pc.type].name}が移動した`);

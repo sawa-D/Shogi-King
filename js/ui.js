@@ -181,10 +181,12 @@ function showMenu(){
     <div class="btns">
       ${!st.over ? '<button class="primary" id="mn1">対局に戻る</button>' : ''}
       <button id="mn2">ルール</button>
+      <button id="mn4">BGM・効果音：${sound.on ? 'ON' : 'OFF'}</button>
       <button id="mn3">タイトルに戻る</button>
     </div>`);
   if($('#mn1')) $('#mn1').onclick = hideOverlay;
   $('#mn2').onclick = () => showRules(true);
+  $('#mn4').onclick = () => { setSoundOn(!sound.on); showMenu(); };
   $('#mn3').onclick = () => st.over ? toTitle() : confirmTitle();
 }
 function confirmTitle(){
@@ -194,6 +196,7 @@ function confirmTitle(){
   $('#cn').onclick = showMenu;
 }
 function toTitle(){
+  stopBgm();
   st = null; ui.cpuBusy = false; ui.handoff = false; clearSel();
   $('#board').innerHTML = ''; $('#hand').innerHTML = ''; $('#topbar').innerHTML = ''; $('#botbar').innerHTML = '';
   $('#prompt').innerHTML = ''; $('#log').innerHTML = '';
