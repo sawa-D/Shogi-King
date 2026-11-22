@@ -59,7 +59,7 @@ function onCell(r, c){
     const d = CARDS[pc.type];
     if(pc.owner===p){
       if(st.movesLeft<=0) setPrompt(`${d.name}：このターンはもう駒を動かせません`, true);
-      else if(st.locked.has(pc.id)) setPrompt(`${d.name}：突風で動いたため、このターンは移動できません`, true);
+      else if(st.locked.has(pc.id)) setPrompt(`${d.name}：${st.locked.get(pc.id)}の効果で、このターンは移動できません`, true);
       else {
         const ms = movesFor(st.board,r,c), ls = launchesFor(st.board,r,c);
         ui.sel={type:'piece',r,c}; ui.targets=[...ms, ...ls];
@@ -101,7 +101,7 @@ function render(){
     if(pc){
       const el = document.createElement('div');
       el.className = 'piece' + (pc.owner!==v ? ' enemy' : ' mine') + (pc.type==='king' ? ' king' : '') + (pc.type==='ryu' ? ' promoted' : '')
-                   + (st.locked.has(pc.id) ? ' locked' : '');
+                   + (st.locked.has(pc.id) || st.bindNext.some(m=>m.has(pc.id)) ? ' locked' : '');
       if(guarded(st.board, r, c)) cell.classList.add('guarded');
       el.textContent = pc.type==='king' && pc.owner===1 ? '玉' : CARDS[pc.type].short;
       cell.appendChild(el);

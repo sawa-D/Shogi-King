@@ -62,7 +62,9 @@ function movesFor(B, r, c){
     if(!inB(tr,tc)) return 0;
     const t = B[tr][tc];
     if(!t) return 1;
-    return t.owner !== pc.owner ? 2 : 0;
+    if(t.owner === pc.owner) return 0;
+    if((CARDS[pc.type].cantCapture || []).includes(t.type)) return 0;   // 縛兵は歩兵を取れない
+    return 2;
   };
   const d = CARDS[pc.type];
   for(const [dy,dx] of (d.step||[])){ const tr=r+dy*f, tc=c+dx*f; if(ok(tr,tc)) out.push({r:tr,c:tc}); }
@@ -99,7 +101,7 @@ function newGame(mode, first){
   board[jinRow(1)][COLS-1-mid] = {id:uid++, owner:1, type:'king'};
   st = { mode, first, cur:first, board, over:false, winner:null, last:null,
          players:[0,1].map(p=>({deck:buildDeck(deckFor(mode,p)), hand:[], mana:0, maxMana:0, turns:0})),
-         movesLeft:0, moved:false, locked:new Set(), log:[] };
+         movesLeft:0, moved:false, locked:new Map(), bindNext:[new Map(), new Map()], log:[] };
   for(const p of [0,1]) draw(p, CONFIG.HAND_START, true);
   log('対局開始！');
   hideOverlay();
@@ -120,7 +122,9 @@ function startTurn(){
   const base = p === st.first ? CONFIG.MANA_FIRST : CONFIG.MANA_SECOND;
   pl.maxMana = Math.min(CONFIG.MANA_MAX, base + pl.turns - 1);
   pl.mana = pl.maxMana;
-  st.movesLeft = 1; st.moved = false; st.locked = new Set();
+  st.movesLeft = 1; st.moved = false;
+  // 動けない駒：縛兵を取った駒は、持ち主の次のターンに動けない（値は理由）
+  st.locked = st.bindNext[p]; st.bindNext[p] = new Map();
   clearSel();
   draw(p, 1);
   log(`${pname(p)}のターン（マナ${pl.mana}）`);
@@ -202,7 +206,7 @@ function useCmd(p, idx, picks=[]){
       for(const q of picks){
         const pc = st.board[q.r][q.c], l = leftOf(p, q.r, q.c);
         st.board[l.r][l.c] = pc; st.board[q.r][q.c] = null;
-        st.locked.add(pc.id); names.push(CARDS[pc.type].name);
+        st.locked.set(pc.id, '突風'); names.push(CARDS[pc.type].name);
       }
       log(`${pname(p)}：【突風】${names.join('と')}を左へ動かした`); break; }
     case 'ryuka': { st.board[t.r][t.c].type = 'ryu'; log(`${pname(p)}：【龍化】飛車が龍になった！`); break; }
@@ -220,7 +224,8 @@ function doMove(p, fr, fc, tr, tc){
   if(cap){
     if(cap.type==='king'){ st.over = true; st.winner = p; stopBgm(); log(`${pname(p)}が王を討ち取った！`); }
     else { st.players[p].hand.push({id:cap.id,key:baseType(cap.type)});
-           log(`${pname(p)}：${CARDS[pc.type].name}が${CARDS[cap.type].name}を倒した（手札へ）`); }
+           log(`${pname(p)}：${CARDS[pc.type].name}が${CARDS[cap.type].name}を倒した（手札へ）`);
+           if(CARDS[cap.type].binds){ st.bindNext[p].set(pc.id, '縛兵'); log(`${CARDS[pc.type].name}は縛られた！次のターン動けない`); } }
   } else log(`${pname(p)}：${CARDS[pc.type].name}が移動した`);
   return true;
 }

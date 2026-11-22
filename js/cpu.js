@@ -20,7 +20,7 @@ function bestMove(p){
     for(const m of movesFor(B,r,c)){
       let s = Math.random()*0.6;
       const cap = B[m.r][m.c];
-      if(cap) s += cap.type==='king' ? 100000 : CARDS[cap.type].value*10;
+      if(cap) s += cap.type==='king' ? 100000 : CARDS[cap.type].value*10 - (CARDS[cap.type].binds ? 3 : 0);
       const nb = B.map(row=>row.slice()); nb[m.r][m.c]=pc; nb[r][c]=null;
       const kp = findKing(nb,p);
       if(kp && attacked(nb,kp.r,kp.c,1-p)) s -= 5000;
