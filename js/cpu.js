@@ -33,6 +33,17 @@ function bestMove(p){
       const ek = findKing(nb,1-p); if(ek && attacked(nb,ek.r,ek.c,p)) s += 8;
       if(!best || s>best.score) best = {fr:r,fc:c,tr:m.r,tc:m.c,score:s};
     }
+    // 砲兵の撃ち出し
+    for(const L of launchesFor(B,r,c)){
+      let s = Math.random()*0.6;
+      const cap = B[L.r][L.c], fu = B[L.fr][L.fc];
+      const nb = B.map(row=>row.slice()); nb[L.fr][L.fc] = null;
+      if(cap){ s += cap.type==='king' ? 100000 : CARDS[cap.type].value*10 - 10; nb[L.r][L.c] = null; }
+      else { nb[L.r][L.c] = fu; s += 2; if(attacked(nb,L.r,L.c,1-p)) s -= 9; }
+      const kp = findKing(nb,p); if(kp && attacked(nb,kp.r,kp.c,1-p)) s -= 5000;
+      const ek = findKing(nb,1-p); if(ek && attacked(nb,ek.r,ek.c,p)) s += 8;
+      if(!best || s>best.score) best = {fr:r,fc:c,tr:L.r,tc:L.c,score:s,launch:true};
+    }
   }
   return best;
 }
@@ -67,6 +78,8 @@ async function runCpu(){
     const ts = cmdTargets(p,'rakurai').sort((a,b)=>valAt(b)-valAt(a));
     if(ts.length && valAt(ts[0])>=3){ useCmd(p,i,[ts[0]]); await step(); }
   }
+  i = pl.hand.findIndex(c=>c.key==='ryuka');
+  if(i>=0 && canCmd(p,i)){ useCmd(p,i,[cmdTargets(p,'ryuka')[0]]); await step(); }
   i = pl.hand.findIndex(c=>c.key==='toppu');
   if(i>=0 && canCmd(p,i)){ const t = bestToppu(p); if(t){ useCmd(p,i,t); await step(); } }
   while(true){
@@ -80,7 +93,8 @@ async function runCpu(){
   if(i>=0 && canCmd(p,i) && Math.random()<0.7){ useCmd(p,i); await step(); }
   while(st.movesLeft>0 && !st.over){
     const m = bestMove(p); if(!m || m.score < -40) break;
-    doMove(p,m.fr,m.fc,m.tr,m.tc); await step();
+    if(m.launch) doLaunch(p,m.fr,m.fc,m.tr,m.tc); else doMove(p,m.fr,m.fc,m.tr,m.tc);
+    await step();
   }
   ui.cpuBusy = false;
   if(st.over){ render(); showResult(); } else endTurn();

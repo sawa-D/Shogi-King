@@ -6,7 +6,7 @@ function openDeckBuilder(){
   const my = loadMyDeck();
   const base = my ? my.cards : CONFIG.DECK;
   db = { name: my ? my.name : 'Myデッキ', cards: {}, dirty: false, msg: !my ? 'まだ保存されていません（標準デッキから作成）' : (deckErrors(my.cards).length ? 'ルールが変わったため、このデッキは今のままでは使えません。組み直して保存してください' : '') };
-  for(const k of Object.keys(CARDS)) if(k !== 'king') db.cards[k] = base[k] || 0;
+  for(const k of Object.keys(CARDS)) if(!CARDS[k].token) db.cards[k] = base[k] || 0;
   hideOverlay();
   $('#app').classList.add('hidden');
   $('#deckView').classList.remove('hidden');
@@ -44,7 +44,7 @@ function cardRow(k){
 
 function renderDeck(){
   const total = deckTotal(db.cards), errs = deckErrors(db.cards);
-  const keys = Object.keys(CARDS).filter(k => k !== 'king');
+  const keys = Object.keys(CARDS).filter(k => !CARDS[k].token);
   const pieces = keys.filter(k => CARDS[k].kind === 'piece'), cmds = keys.filter(k => CARDS[k].kind === 'cmd');
   const sum = ks => ks.reduce((a,k) => a + db.cards[k], 0);
   const costs = [1,2,3].map(c => keys.filter(k => CARDS[k].cost === c).reduce((a,k) => a + db.cards[k], 0));

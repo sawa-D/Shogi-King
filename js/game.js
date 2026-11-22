@@ -24,7 +24,7 @@ function cardLimit(k){
 function deckErrors(cards){
   const errs = []; let total = 0;
   for(const [k,n] of Object.entries(cards)){
-    if(!CARDS[k] || k==='king'){ errs.push(`不明なカード：${k}`); continue; }
+    if(!CARDS[k] || CARDS[k].token){ errs.push(`使えないカード：${k}`); continue; }
     if(!Number.isInteger(n) || n<0){ errs.push(`${CARDS[k].name}の枚数が不正です`); continue; }
     if(n > cardLimit(k)) errs.push(`${CARDS[k].name}は${cardLimit(k)}枚までです`);
     total += n;
@@ -38,6 +38,23 @@ const pname = p => st.mode === 'cpu' ? (p===0 ? 'あなた' : 'CPU') : (p===0 ? 
 function log(msg){ st.log.unshift(msg); st.log = st.log.slice(0,4); }
 
 /* ---------- ルール ---------- */
+// 倒されたり手札に戻ったりするときの元の駒（龍→飛車）
+const baseType = t => CARDS[t].base || t;
+// 砲兵の撃ち出し：前方3マスにいる自分の歩兵を2マス先へ。行き先が空きか相手の駒なら撃てる
+function launchesFor(B, r, c){
+  const pc = B[r][c]; if(!pc || !CARDS[pc.type].launcher) return [];
+  const f = fwd(pc.owner), out = [];
+  for(const dc of [-1,0,1]){
+    const fr = r+f, fc = c+dc;
+    if(!inB(fr,fc)) continue;
+    const q = B[fr][fc]; if(!q || q.owner!==pc.owner || q.type!=='fu') continue;
+    const tr = fr+2*f, tc = fc;
+    if(!inB(tr,tc)) continue;
+    const t = B[tr][tc]; if(t && t.owner===pc.owner) continue;
+    out.push({fr, fc, r:tr, c:tc, launch:true});
+  }
+  return out;
+}
 function movesFor(B, r, c){
   const pc = B[r][c]; if(!pc) return [];
   const f = fwd(pc.owner), out = [];
@@ -57,7 +74,8 @@ function movesFor(B, r, c){
 }
 function attacked(B, r, c, by){
   for(let i=0;i<ROWS;i++) for(let j=0;j<COLS;j++){
-    const pc=B[i][j]; if(pc && pc.owner===by && movesFor(B,i,j).some(m=>m.r===r&&m.c===c)) return true;
+    const pc=B[i][j]; if(!pc || pc.owner!==by) continue;
+    if(movesFor(B,i,j).some(m=>m.r===r&&m.c===c) || launchesFor(B,i,j).some(m=>m.r===r&&m.c===c)) return true;
   }
   return false;
 }
@@ -148,6 +166,7 @@ function cmdTargets(p, key, picks=[]){
     if(want.side==='own' && enemy) continue;
     if(want.side==='enemy' && !enemy) continue;
     if(!want.king && pc.type==='king') continue;
+    if(want.type && pc.type!==want.type) continue;
     if(enemy && guarded(st.board,r,c)) continue;
     if(want.shift){ const l = leftOf(p,r,c); if(!inB(l.r,l.c) || st.board[l.r][l.c]) continue; }
     out.push({r,c});
@@ -174,7 +193,7 @@ function useCmd(p, idx, picks=[]){
   switch(card.key){
     case 'shingun': st.movesLeft++; log(`${pname(p)}：【進軍】駒をもう1回動かせる`); break;
     case 'hokyu': { const n = draw(p,2); log(`${pname(p)}：【補給】カードを${n}枚引いた`); break; }
-    case 'tettai': { const pc = st.board[t.r][t.c]; st.board[t.r][t.c] = null; pl.hand.push({id:pc.id,key:pc.type});
+    case 'tettai': { const pc = st.board[t.r][t.c]; st.board[t.r][t.c] = null; pl.hand.push({id:pc.id,key:baseType(pc.type)});
                      log(`${pname(p)}：【撤退】${CARDS[pc.type].name}を手札に戻した`); break; }
     case 'rakurai': { const pc = st.board[t.r][t.c]; st.board[t.r][t.c] = null;
                       log(`${pname(p)}：【落雷】${CARDS[pc.type].name}を破壊した`); break; }
@@ -186,6 +205,7 @@ function useCmd(p, idx, picks=[]){
         st.locked.add(pc.id); names.push(CARDS[pc.type].name);
       }
       log(`${pname(p)}：【突風】${names.join('と')}を左へ動かした`); break; }
+    case 'ryuka': { st.board[t.r][t.c].type = 'ryu'; log(`${pname(p)}：【龍化】飛車が龍になった！`); break; }
   }
   return true;
 }
@@ -199,8 +219,25 @@ function doMove(p, fr, fc, tr, tc){
   playSe('move');
   if(cap){
     if(cap.type==='king'){ st.over = true; st.winner = p; stopBgm(); log(`${pname(p)}が王を討ち取った！`); }
-    else { st.players[p].hand.push({id:cap.id,key:cap.type});
+    else { st.players[p].hand.push({id:cap.id,key:baseType(cap.type)});
            log(`${pname(p)}：${CARDS[pc.type].name}が${CARDS[cap.type].name}を倒した（手札へ）`); }
   } else log(`${pname(p)}：${CARDS[pc.type].name}が移動した`);
+  return true;
+}
+// 砲兵の撃ち出し（駒の移動1回分を使う）
+function doLaunch(p, hr, hc, tr, tc){
+  const h = st.board[hr][hc];
+  if(!h || h.owner!==p || st.movesLeft<=0 || st.locked.has(h.id)) return false;
+  const L = launchesFor(st.board, hr, hc).find(m=>m.r===tr&&m.c===tc); if(!L) return false;
+  const fu = st.board[L.fr][L.fc], cap = st.board[tr][tc];
+  st.board[L.fr][L.fc] = null;
+  st.movesLeft--; st.moved = true; st.last = {fr:L.fr,fc:L.fc,tr,tc};
+  playSe('move');
+  if(cap){
+    // 相手の駒を取る。撃ち出した歩兵はその後消える
+    if(cap.type==='king'){ st.board[tr][tc] = null; st.over = true; st.winner = p; stopBgm(); log(`${pname(p)}：砲撃で王を討ち取った！`); }
+    else { st.board[tr][tc] = null; st.players[p].hand.push({id:cap.id,key:baseType(cap.type)});
+           log(`${pname(p)}：砲撃！歩兵が${CARDS[cap.type].name}を倒して散った（手札へ）`); }
+  } else { st.board[tr][tc] = fu; log(`${pname(p)}：砲兵が歩兵を撃ち出した`); }
   return true;
 }
