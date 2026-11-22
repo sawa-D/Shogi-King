@@ -7,7 +7,10 @@ const CONFIG = {
   MANA_FIRST: 1,      // 先攻の開始マナ
   MANA_SECOND: 2,     // 後攻の開始マナ
   MANA_MAX: 3,        // マナ上限
-  // デッキ構成（合計30枚）
+  DECK_SIZE: 30,       // デッキの枚数（ちょうどこの枚数）
+  MAX_COPIES: 3,       // 同じカードの上限枚数
+  UNLIMITED: ['fu'],   // 上限なしのカード
+  // 標準デッキ（CPUのデッキ／Myデッキ未作成時に使用）
   DECK: { fu:8, kyo:2, kei:2, gin:3, kin:3, kaku:2, hi:2,  shingun:2, hokyu:2, tettai:2, rakurai:2 },
 };
 

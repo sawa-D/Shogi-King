@@ -139,8 +139,13 @@ function showTitle(){
       <button class="primary" id="m1">CPUと対戦（先攻）</button>
       <button class="primary" id="m2">CPUと対戦（後攻）</button>
       <button id="m3">2人で対戦（1台を交代で操作）</button>
+      <button id="m6">Myデッキ</button>
       <button id="m4">ルール</button>
-    </div>`);
+    </div>
+    <p id="deckNote"></p>`);
+  const my = loadMyDeck();
+  $('#deckNote').textContent = my && !deckErrors(my.cards).length ? `使用デッキ：${my.name}` : '使用デッキ：標準デッキ';
+  $('#m6').onclick = () => openDeckBuilder();
   $('#m1').onclick = () => newGame('cpu',0);
   $('#m2').onclick = () => newGame('cpu',1);
   $('#m3').onclick = () => newGame('2p',0);
@@ -183,8 +188,8 @@ function showResult(){
   $('#rb').onclick = toTitle; $('#rb2').onclick = hideOverlay;
 }
 function showRules(fromMenu){
-  const pieces = Object.entries(CARDS).filter(([k,d])=>d.kind==='piece'&&k!=='king').map(([k,d])=>`<li>${d.name}（${d.cost}マナ）${d.desc}　×${CONFIG.DECK[k]}</li>`).join('');
-  const cmds = Object.entries(CARDS).filter(([k,d])=>d.kind==='cmd').map(([k,d])=>`<li>${d.name}（${d.cost}マナ）${d.desc}　×${CONFIG.DECK[k]}</li>`).join('');
+  const pieces = Object.entries(CARDS).filter(([k,d])=>d.kind==='piece'&&k!=='king').map(([k,d])=>`<li>${d.name}（${d.cost}マナ）${d.desc}</li>`).join('');
+  const cmds = Object.entries(CARDS).filter(([k,d])=>d.kind==='cmd').map(([k,d])=>`<li>${d.name}（${d.cost}マナ）${d.desc}</li>`).join('');
   showOverlay(`<h2>ルール</h2><div class="rules">
     <h3>盤面</h3><ul><li>戦場5×5＋両端に「陣」が1行ずつ（7×5）</li><li>お互いの王は自陣側の真ん中からスタート</li></ul>
     <h3>手番</h3><ul><li>①カードを1枚引く</li><li>②マナの範囲で、手札の駒を自分の陣に置く＝<b>援軍</b>（何枚でも）</li>
@@ -193,6 +198,7 @@ function showRules(fromMenu){
     <h3>マナ</h3><ul><li>先攻1・後攻2から始まり、毎ターン+1（最大3）</li></ul>
     <h3>駒を倒す</h3><ul><li>動いた先の相手の駒を倒せる。倒した駒は自分の手札に加わる</li><li>成りはなし</li></ul>
     <h3>勝利条件</h3><ul><li>相手の王を取ったら勝ち</li><li>山札が切れても負けにならず、引けないだけ</li></ul>
+    <h3>デッキ</h3><ul><li>${CONFIG.DECK_SIZE}枚ちょうど</li><li>同じカードは${CONFIG.MAX_COPIES}枚まで（歩兵は上限なし）</li><li>タイトルの「Myデッキ」で編集できる</li></ul>
     <h3>駒カード</h3><ul>${pieces}</ul>
     <h3>指令カード</h3><ul>${cmds}</ul>
   </div><div class="btns"><button class="primary" id="rc">閉じる</button></div>`);

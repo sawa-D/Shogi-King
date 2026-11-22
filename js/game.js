@@ -13,7 +13,20 @@ const inB = (r,c) => r >= 0 && r < ROWS && c >= 0 && c < COLS;
 let sleep = ms => new Promise(res => setTimeout(res, ms));
 
 function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
-function buildDeck(){ const d=[]; for(const [k,n] of Object.entries(CONFIG.DECK)) for(let i=0;i<n;i++) d.push({id:uid++,key:k}); return shuffle(d); }
+// デッキのチェック（オンライン対戦ではサーバー側でも同じ確認をする）
+function deckErrors(cards){
+  const errs = []; let total = 0;
+  for(const [k,n] of Object.entries(cards)){
+    if(!CARDS[k] || k==='king'){ errs.push(`不明なカード：${k}`); continue; }
+    if(!Number.isInteger(n) || n<0){ errs.push(`${CARDS[k].name}の枚数が不正です`); continue; }
+    if(n > CONFIG.MAX_COPIES && !CONFIG.UNLIMITED.includes(k)) errs.push(`${CARDS[k].name}は${CONFIG.MAX_COPIES}枚までです`);
+    total += n;
+  }
+  if(total !== CONFIG.DECK_SIZE) errs.push(`デッキは${CONFIG.DECK_SIZE}枚ちょうどにしてください（現在${total}枚）`);
+  return errs;
+}
+const deckTotal = cards => Object.values(cards).reduce((a,b)=>a+b, 0);
+function buildDeck(cards){ const d=[]; for(const [k,n] of Object.entries(cards || CONFIG.DECK)) for(let i=0;i<n;i++) d.push({id:uid++,key:k}); return shuffle(d); }
 const pname = p => st.mode === 'cpu' ? (p===0 ? 'あなた' : 'CPU') : (p===0 ? 'プレイヤー1' : 'プレイヤー2');
 function log(msg){ st.log.unshift(msg); st.log = st.log.slice(0,4); }
 
@@ -51,13 +64,19 @@ function findKing(B, p){
 }
 function inCheck(p){ const k=findKing(st.board,p); return k && attacked(st.board,k.r,k.c,1-p); }
 
+// 各プレイヤーが使うデッキ：CPUは標準デッキ、人はMyデッキ
+function deckFor(mode, p){
+  if(mode==='cpu' && p===1) return CONFIG.DECK;
+  const my = loadMyDeck();
+  return my && !deckErrors(my.cards).length ? my.cards : CONFIG.DECK;
+}
 function newGame(mode, first){
   const board = Array.from({length:ROWS}, () => Array(COLS).fill(null));
   const mid = Math.floor(COLS/2);
   board[ROWS-2][mid] = {id:uid++, owner:0, type:'king'};   // 自陣側の真ん中
   board[1][mid]      = {id:uid++, owner:1, type:'king'};
   st = { mode, first, cur:first, board, over:false, winner:null, last:null,
-         players:[0,1].map(()=>({deck:buildDeck(), hand:[], mana:0, maxMana:0, turns:0})),
+         players:[0,1].map(p=>({deck:buildDeck(deckFor(mode,p)), hand:[], mana:0, maxMana:0, turns:0})),
          movesLeft:0, moved:false, log:[] };
   for(const p of [0,1]) draw(p, CONFIG.HAND_START, true);
   log('対局開始！');
