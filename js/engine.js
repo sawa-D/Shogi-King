@@ -68,9 +68,10 @@
       return 2;
     };
     for(const [dy,dx] of (d.step||[])){ const tr=r+dy*f, tc=c+dx*f; if(ok(tr,tc)) out.push({r:tr,c:tc}); }
+    const range = d.range || Infinity;            // まっすぐ進める最大マス数
     for(const [dy,dx] of (d.slide||[])){
       let tr=r, tc=c;
-      while(true){ tr+=dy*f; tc+=dx*f; const k=ok(tr,tc); if(!k) break; out.push({r:tr,c:tc}); if(k===2) break; }
+      for(let n=1; n<=range; n++){ tr+=dy*f; tc+=dx*f; const k=ok(tr,tc); if(!k) break; out.push({r:tr,c:tc}); if(k===2) break; }
     }
     // 重複（龍の縦横1マスなど）を取り除く
     return out.filter((m,i) => out.findIndex(x=>same(x,m)) === i);
