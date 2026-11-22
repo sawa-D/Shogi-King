@@ -69,11 +69,17 @@ Shogi-King/
 │  ├─ sound.js    BGMと効果音（使うファイル名と音量もここ）
 │  ├─ match.js    対局の進行（操作をエンジンに渡し、結果でログ・音・画面を更新）
 │  ├─ ui.js       対局画面の描画とタップ操作、メニュー
-│  └─ deck.js     Myデッキ（デッキビルド画面）
+│  ├─ deck.js     Myデッキ（デッキビルド画面）
+│  └─ online.js   オンライン対戦（サーバーとの通信、ルーム作成・参加、再接続、残り時間）
+├─ server/        オンライン対戦サーバー（Cloudflare Workers + Durable Objects）
+│  ├─ src/index.js  ルーム・審判・持ち時間・切断の判定
+│  ├─ wrangler.jsonc  Cloudflare の設定
+│  └─ package.json
 └─ tests/
-   └─ selfplay.js エンジンの動作確認（node tests/selfplay.js）
+   ├─ selfplay.js     エンジンの動作確認（node tests/selfplay.js）
+   └─ server-test.mjs 対戦サーバーの動作確認
 ```
-JavaScript は config → engine → cpu → storage → sound → match → ui → deck の順に読み込まれます。
+JavaScript は config → engine → cpu → storage → sound → match → online → ui → deck の順に読み込まれます。
 
 ## エンジンの仕組み
 - 対局の状態（state）はただのデータで、そのまま JSON にして通信で送れる
@@ -101,6 +107,27 @@ JavaScript は config → engine → cpu → storage → sound → match → ui 
 - 駒を動かすと（CPUの手も含めて）駒を指す音が鳴る
 - メニューの「BGM・効果音」でON/OFFを切り替えられる（設定は保存される）
 - スマホはタップしたときしか音を鳴らし始められないため、最初のタップで音の準備をしている
+
+## オンライン対戦サーバーの公開手順（Cloudflare）
+初回だけ、PC（Windows）で次を行う。
+1. Node.js（LTS版）を https://nodejs.org からインストールする
+2. コマンドプロンプトで
+   ```
+   cd C:\Users\keisy\Documents\iphone_app\Shogi-King\server
+   npm install
+   npx wrangler login
+   npx wrangler deploy
+   ```
+   - `wrangler login` でブラウザが開くので、Cloudflare にログインして「Allow」を押す
+   - `wrangler deploy` が終わると `https://shogi-king-server.〇〇.workers.dev` というURLが表示される
+3. 表示されたURLを `js/online.js` の `SERVER: ''` に入れて push する
+4. ブラウザで `https://shogi-king-server.〇〇.workers.dev/health` を開き、`{"ok":true,...}` と出れば動いている
+
+サーバーのプログラムを変えたときは、server フォルダで `npx wrangler deploy` をもう一度実行する。
+
+### PCだけで試す（公開しなくても動かせる）
+- server フォルダで `npx wrangler dev` を実行する
+- ブラウザを2つ（片方はシークレットウィンドウ）開き、`index.html?server=http://127.0.0.1:8787` を開いて対戦する
 
 ## データの保存について
 Myデッキはブラウザの localStorage に保存されます（端末・ブラウザごと）。

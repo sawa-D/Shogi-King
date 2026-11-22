@@ -11,10 +11,16 @@ const $ = s => document.querySelector(s);
 
 let st = null;      // 対局の状態（エンジンの state）
 let match = null;   // この端末側の情報 { mode:'cpu'|'2p', log:[] }
-let ui = { sel:null, targets:[], prompt:'', warn:false, action:null, handoff:false, cpuBusy:false };
+let ui = { sel:null, targets:[], prompt:'', warn:false, action:null, handoff:false, cpuBusy:false, pending:false };
 let sleep = ms => new Promise(res => setTimeout(res, ms));
 
-const pname = p => match.mode === 'cpu' ? (p===0 ? 'あなた' : 'CPU') : (p===0 ? 'プレイヤー1' : 'プレイヤー2');
+const pname = p => {
+  if(match.mode === 'cpu') return p===0 ? 'あなた' : 'CPU';
+  if(match.mode === 'online') return p===match.you ? 'あなた' : ((match.names && match.names[p]) || '相手');
+  return p===0 ? 'プレイヤー1' : 'プレイヤー2';
+};
+// この端末で操作するプレイヤー（2人対戦では手番の人）
+const mySeat = () => match.mode === 'online' ? match.you : match.mode === '2p' ? st.cur : 0;
 function log(msg){ match.log.unshift(msg); match.log = match.log.slice(0,4); }
 
 // 各プレイヤーが使うデッキ：CPUは標準デッキ、人はMyデッキ
@@ -81,6 +87,7 @@ function handleEvents(events){
 // 今の手番のプレイヤーとして操作する。失敗したら理由を表示して false
 function dispatch(action){
   if(!st || st.over) return false;
+  if(match.mode === 'online') return sendAction(action);     // オンラインはサーバーが審判
   const res = Engine.apply(st, { ...action, p: st.cur });
   if(!res.ok){ setPrompt(res.error, true); render(); return false; }
   handleEvents(res.events);

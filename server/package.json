@@ -1,0 +1,12 @@
+{
+  "name": "shogi-king-server",
+  "private": true,
+  "description": "Shogi King のオンライン対戦サーバー（Cloudflare Workers + Durable Objects）",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

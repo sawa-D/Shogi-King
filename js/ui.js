@@ -1,8 +1,8 @@
 'use strict';
 /* 画面の描画と操作 */
 /* ---------- 操作 ---------- */
-const viewer = () => match.mode==='2p' ? st.cur : 0;
-const myTurn = () => st && !st.over && !ui.handoff && !ui.cpuBusy && (match.mode==='2p' || st.cur===0);
+const viewer = () => mySeat();
+const myTurn = () => !!st && !st.over && !ui.handoff && !ui.cpuBusy && !ui.pending && st.cur===mySeat() && (!isOnline() || netReady());
 function clearSel(){ ui.sel=null; ui.targets=[]; ui.prompt=''; ui.action=null; ui.warn=false; }
 function setPrompt(t, warn){ ui.prompt=t; ui.warn=!!warn; }
 
@@ -83,7 +83,7 @@ const handCount = pl => pl.handCount ?? pl.hand.length;
 const deckCount = pl => pl.deckCount ?? pl.deck.length;
 function barHtml(p){
   const pl = st.players[p];
-  return `<span class="name">${st.cur===p&&!st.over?'▶ ':''}${pname(p)}</span>
+  return `<span class="name">${st.cur===p&&!st.over?'▶ ':''}${escapeHtml(pname(p))}<span class="clock" data-p="${p}">${onlineClockText(p)}</span></span>
     <span class="mana">${manaStr(pl)}</span>
     <span>手札 ${handCount(pl)}　山札 ${deckCount(pl)}</span>`;
 }
@@ -138,6 +138,9 @@ function render(){
   if(!text){
     if(st.over) text = `${pname(st.winner)}の勝ち！`;
     else if(ui.cpuBusy) text = 'CPUが考え中…';
+    else if(isOnline() && !netReady()){ text = '接続が切れました。再接続しています…'; warn = true; }
+    else if(ui.pending) text = '送信中…';
+    else if(isOnline() && st.cur!==match.you) text = `${pname(st.cur)}の番です`;
     else if(myTurn()){
       if(Engine.inCheck(st, st.cur)){ text = '王手されています！'; warn = true; }
       else if(st.movesLeft<=0) text = 'ターン終了を押してください（指令はまだ使えます）';
@@ -147,6 +150,8 @@ function render(){
   }
   const span = document.createElement('span'); span.textContent = text; pr.appendChild(span);
   pr.classList.toggle('warn', !!warn);
+  const disc = opponentDisconnectText();
+  if(disc){ const d = document.createElement('div'); d.id = 'oppDisc'; d.textContent = disc; pr.appendChild(d); }
   if(ui.action){
     const b = document.createElement('button'); b.className='primary'; b.textContent = ui.action.label; b.onclick = ui.action.fn; pr.appendChild(b);
     const b2 = document.createElement('button'); b2.textContent = 'やめる'; b2.onclick = ()=>{ clearSel(); render(); }; pr.appendChild(b2);
@@ -174,6 +179,7 @@ function showTitle(){
       <button class="primary" id="m1">CPUと対戦（先攻）</button>
       <button class="primary" id="m2">CPUと対戦（後攻）</button>
       <button id="m3">2人で対戦（1台を交代で操作）</button>
+      <button class="primary" id="m7">オンライン対戦</button>
       <button id="m6">Myデッキ</button>
       <button id="m4">ルール</button>
     </div>
@@ -185,6 +191,7 @@ function showTitle(){
   $('#m2').onclick = () => newGame('cpu',1);
   $('#m3').onclick = () => newGame('2p',0);
   $('#m4').onclick = () => showRules();
+  $('#m7').onclick = () => showOnlineMenu();
 }
 function showMenu(){
   if(!st){ showTitle(); return; }
@@ -193,21 +200,29 @@ function showMenu(){
       ${!st.over ? '<button class="primary" id="mn1">対局に戻る</button>' : ''}
       <button id="mn2">ルール</button>
       <button id="mn4">BGM・効果音：${sound.on ? 'ON' : 'OFF'}</button>
+      ${isOnline() && !st.over ? '<button id="mn5">降参する</button>' : ''}
       <button id="mn3">タイトルに戻る</button>
     </div>`);
   if($('#mn1')) $('#mn1').onclick = hideOverlay;
   $('#mn2').onclick = () => showRules(true);
   $('#mn4').onclick = () => { setSoundOn(!sound.on); showMenu(); };
   $('#mn3').onclick = () => st.over ? toTitle() : confirmTitle();
+  if($('#mn5')) $('#mn5').onclick = () => {
+    showOverlay(`<h2>降参しますか？</h2><p>この対局は負けになります</p>
+      <div class="btns"><button class="primary" id="ry">降参する</button><button id="rn">キャンセル</button></div>`);
+    $('#ry').onclick = () => { if(netReady()) net.ws.send(JSON.stringify({ t:'resign' })); hideOverlay(); };
+    $('#rn').onclick = showMenu;
+  };
 }
 function confirmTitle(){
-  showOverlay(`<h2>タイトルに戻りますか？</h2><p>今の対局は終了します</p>
+  showOverlay(`<h2>タイトルに戻りますか？</h2><p>${isOnline() ? 'オンライン対戦の途中で戻ると、降参（負け）になります' : '今の対局は終了します'}</p>
     <div class="btns"><button class="primary" id="cy">タイトルに戻る</button><button id="cn">キャンセル</button></div>`);
   $('#cy').onclick = toTitle;
   $('#cn').onclick = showMenu;
 }
 function toTitle(){
   stopBgm();
+  if(isOnline() || net.code) leaveOnline();
   st = null; match = null; ui.cpuBusy = false; ui.handoff = false; clearSel();
   $('#board').innerHTML = ''; $('#hand').innerHTML = ''; $('#topbar').innerHTML = ''; $('#botbar').innerHTML = '';
   $('#prompt').innerHTML = ''; $('#log').innerHTML = '';
@@ -219,7 +234,30 @@ function showHandoff(){
     <div class="btns"><button class="primary" id="hb">開始</button></div>`);
   $('#hb').onclick = () => { ui.handoff=false; hideOverlay(); render(); };
 }
+// 決着の理由（オンライン用）
+function resultReason(youWin){
+  const t = {
+    king:       youWin ? '相手の王を討ち取りました' : '王を取られました',
+    resign:     youWin ? '相手が降参しました'       : '降参しました',
+    timeout:    youWin ? '相手の持ち時間が切れました' : '持ち時間が切れました',
+    disconnect: youWin ? '相手の接続が切れたままでした' : '接続が切れたままでした',
+  };
+  return t[st.reason] || '';
+}
 function showResult(){
+  if(isOnline()){
+    const youWin = st.winner === match.you, rm = (net.room && net.room.rematch) || [false,false];
+    const opp = net.room && net.room.players[1 - match.you];
+    const oppGone = !opp || !opp.connected;
+    const status = oppGone ? '相手は退出しました' : rm[match.you] ? '相手の返事を待っています…' : rm[1-match.you] ? `${escapeHtml(pname(1-match.you))}さんが再戦を希望しています` : '';
+    showOverlay(`<h1>${youWin ? '勝利！' : '敗北…'}</h1><p>${resultReason(youWin)}</p>
+      <p id="rmWait" class="hint">${status}</p>
+      <div class="btns"><button class="primary" id="rm" ${rm[match.you] || oppGone ? 'disabled' : ''}>もう一度対戦する</button>
+        <button id="rb">タイトルに戻る</button><button id="rb2">盤面を見る</button></div>`);
+    $('#rm').onclick = () => { if(netReady()) net.ws.send(JSON.stringify({ t:'rematch' })); };
+    $('#rb').onclick = toTitle; $('#rb2').onclick = hideOverlay;
+    return;
+  }
   const win = match.mode==='cpu' ? (st.winner===0 ? '勝利！' : '敗北…') : `${pname(st.winner)}の勝ち！`;
   showOverlay(`<h1>${win}</h1><p>${pname(st.winner)}が相手の王を討ち取りました</p>
     <div class="btns"><button class="primary" id="rb">タイトルに戻る</button><button id="rb2">盤面を見る</button></div>`);
