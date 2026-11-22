@@ -2,7 +2,7 @@
   --bg:#1d1410; --panel:#2b1e17; --text:#f5e9d6; --muted:#b9a48a;
   --board:#d8a75c; --line:#6b4421; --jin:#7a4c25; --jin2:#5d3a1c;
   --piece:#f4dcaa; --pieceText:#1b1209; --accent:#e9b949; --red:#d9534f;
-  --cell:min(15vw, 7.2vh, 60px);
+  --cell:min(calc(92vw / var(--cols)), calc(58vh / var(--rows)), 60px);
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
@@ -107,7 +107,7 @@ button:disabled{opacity:.4;}
 
 /* 画面の高さが小さい端末（iPhone SE など） */
 @media (max-height:720px){
-  :root{--cell:min(15vw, 6.6vh, 60px);}
+  :root{--cell:min(calc(92vw / var(--cols)), calc(53vh / var(--rows)), 60px);}
   #app{gap:4px;}
   .card{height:88px;width:78px;}
   .card .cdesc{display:none;}
