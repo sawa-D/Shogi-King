@@ -15,7 +15,7 @@ function pickSpot(p, spots){
 function bestMove(p){
   const B = st.board; let best = null;
   for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
-    const pc = B[r][c]; if(!pc || pc.owner!==p) continue;
+    const pc = B[r][c]; if(!pc || pc.owner!==p || st.locked.has(pc.id)) continue;
     const v = CARDS[pc.type].value;
     for(const m of movesFor(B,r,c)){
       let s = Math.random()*0.6;
@@ -36,6 +36,26 @@ function bestMove(p){
   }
   return best;
 }
+// 突風：相手の王を狙える、または自分の王手を外せる組み合わせがあれば使う
+function bestToppu(p){
+  const es = cmdTargets(p,'toppu',[]), os = cmdTargets(p,'toppu',[null]);
+  const inCheckNow = inCheck(p);
+  let best = null, bestScore = 0;
+  for(const e of es) for(const o of os){
+    const B = st.board.map(row=>row.slice());
+    const movedIds = new Set();
+    for(const q of [e,o]){ const pc=B[q.r][q.c], l=leftOf(p,q.r,q.c); B[l.r][l.c]=pc; B[q.r][q.c]=null; movedIds.add(pc.id); }
+    let s = 0;
+    const ek = findKing(B,1-p), mk = findKing(B,p);
+    // 動かした駒はこのターン動けないので、それ以外の駒で王を狙えるか
+    const hits = (r,c) => { for(let i=0;i<ROWS;i++) for(let j=0;j<COLS;j++){ const q=B[i][j];
+      if(q && q.owner===p && !movedIds.has(q.id) && movesFor(B,i,j).some(m=>m.r===r&&m.c===c)) return true; } return false; };
+    if(ek && hits(ek.r,ek.c)) s += 100;
+    if(inCheckNow && mk && !attacked(B,mk.r,mk.c,1-p)) s += 80;
+    if(s > bestScore){ bestScore = s; best = [e,o]; }
+  }
+  return best;
+}
 async function runCpu(){
   const p = 1, pl = st.players[p];
   const g = st;
@@ -45,8 +65,10 @@ async function runCpu(){
   i = pl.hand.findIndex(c=>c.key==='rakurai');
   if(i>=0 && canCmd(p,i)){
     const ts = cmdTargets(p,'rakurai').sort((a,b)=>valAt(b)-valAt(a));
-    if(ts.length && valAt(ts[0])>=3){ useCmd(p,i,ts[0]); await step(); }
+    if(ts.length && valAt(ts[0])>=3){ useCmd(p,i,[ts[0]]); await step(); }
   }
+  i = pl.hand.findIndex(c=>c.key==='toppu');
+  if(i>=0 && canCmd(p,i)){ const t = bestToppu(p); if(t){ useCmd(p,i,t); await step(); } }
   while(true){
     const cands = pl.hand.map((c,idx)=>({c,idx})).filter(o=>canSummon(p,o.idx));
     if(!cands.length) break;

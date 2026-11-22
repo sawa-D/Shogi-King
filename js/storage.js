@@ -2,7 +2,7 @@
 /* データの保存（今はブラウザの localStorage。オンライン対戦の段階でDBに切り替える） */
 const STORAGE_KEY_DECK = 'shogiking.mydeck.v1';
 
-// 保存形式：{ version:1, name:'Myデッキ', cards:{ fu:16, kin:2, ... }, updatedAt:'ISO日時' }
+// 保存形式：{ version:1, name:'Myデッキ', cards:{ fu:6, kin:2, ... }, updatedAt:'ISO日時' }
 function loadMyDeck(){
   try {
     const raw = localStorage.getItem(STORAGE_KEY_DECK);

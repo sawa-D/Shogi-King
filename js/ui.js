@@ -18,10 +18,9 @@ function onCard(idx){
     else { ui.sel={type:'card',idx}; ui.targets=summonTargets(p); setPrompt(`${d.name}（${d.desc}）を援軍に出す陣のマスを選んでください`); }
   } else {
     if(d.cost > st.players[p].mana) setPrompt('マナが足りません', true);
-    else if(d.target){
-      const ts = cmdTargets(p, card.key);
-      if(!ts.length) setPrompt('対象にできる駒がありません', true);
-      else { ui.sel={type:'card',idx}; ui.targets=ts; setPrompt(`【${d.name}】対象の駒を選んでください`); }
+    else if(d.targets){
+      if(!canCmd(p, idx)) setPrompt(`【${d.name}】対象にできる駒がありません`, true);
+      else { ui.sel={type:'card',idx,picks:[]}; ui.targets=cmdTargets(p, card.key, []); setPrompt(`【${d.name}】${d.desc}　→ ${d.targets[0].label}`); }
     } else {
       ui.sel={type:'card',idx};
       setPrompt(`【${d.name}】${d.desc}`);
@@ -36,7 +35,18 @@ function onCell(r, c){
   if(ui.sel && ui.targets.some(t=>t.r===r&&t.c===c)){
     if(ui.sel.type==='card'){
       const d = CARDS[st.players[p].hand[ui.sel.idx].key];
-      if(d.kind==='piece') summon(p, ui.sel.idx, r, c); else useCmd(p, ui.sel.idx, {r,c});
+      if(d.kind==='piece') summon(p, ui.sel.idx, r, c);
+      else {
+        // 対象を順番に選ぶ（突風は2つ）
+        ui.sel.picks.push({r,c});
+        const key = st.players[p].hand[ui.sel.idx].key, next = d.targets[ui.sel.picks.length];
+        if(next){
+          ui.targets = cmdTargets(p, key, ui.sel.picks);
+          setPrompt(`【${d.name}】${next.label}`);
+          render(); return;
+        }
+        useCmd(p, ui.sel.idx, ui.sel.picks);
+      }
     } else doMove(p, ui.sel.r, ui.sel.c, r, c);
     clearSel(); afterAction(); return;
   }
@@ -46,10 +56,11 @@ function onCell(r, c){
     const d = CARDS[pc.type];
     if(pc.owner===p){
       if(st.movesLeft<=0) setPrompt(`${d.name}：このターンはもう駒を動かせません`, true);
+      else if(st.locked.has(pc.id)) setPrompt(`${d.name}：突風で動いたため、このターンは移動できません`, true);
       else {
         const ms = movesFor(st.board,r,c);
         ui.sel={type:'piece',r,c}; ui.targets=ms;
-        setPrompt(isJin(r) ? `${d.name}：陣からは1マス前に出陣できます` : `${d.name}（${d.desc}）`);
+        setPrompt(`${d.name}（${d.desc}）`);
         if(!ms.length) setPrompt(`${d.name}：動ける場所がありません`, true);
       }
     } else setPrompt(`相手の${d.name}（${d.desc}）`);
@@ -78,10 +89,13 @@ function render(){
     const pc = st.board[r][c];
     if(tset.has(r+','+c)) cell.classList.add(pc && ui.sel.type!=='card' ? 'target-cap' : (pc ? 'target-cap' : 'target'));
     if(ui.sel && ui.sel.type==='piece' && ui.sel.r===r && ui.sel.c===c) cell.classList.add('selected');
+    if(ui.sel && ui.sel.picks && ui.sel.picks.some(q=>q.r===r&&q.c===c)) cell.classList.add('selected');
     if(st.last && ((st.last.fr===r&&st.last.fc===c)||(st.last.tr===r&&st.last.tc===c))) cell.classList.add('last');
     if(pc){
       const el = document.createElement('div');
-      el.className = 'piece' + (pc.owner!==v ? ' enemy' : ' mine') + (pc.type==='king' ? ' king' : '');
+      el.className = 'piece' + (pc.owner!==v ? ' enemy' : ' mine') + (pc.type==='king' ? ' king' : '')
+                   + (st.locked.has(pc.id) ? ' locked' : '');
+      if(guarded(st.board, r, c)) cell.classList.add('guarded');
       el.textContent = pc.type==='king' && pc.owner===1 ? '玉' : CARDS[pc.type].short;
       cell.appendChild(el);
     }
@@ -191,10 +205,10 @@ function showRules(fromMenu){
   const pieces = Object.entries(CARDS).filter(([k,d])=>d.kind==='piece'&&k!=='king').map(([k,d])=>`<li>${d.name}（${d.cost}マナ）${d.desc}</li>`).join('');
   const cmds = Object.entries(CARDS).filter(([k,d])=>d.kind==='cmd').map(([k,d])=>`<li>${d.name}（${d.cost}マナ）${d.desc}</li>`).join('');
   showOverlay(`<h2>ルール</h2><div class="rules">
-    <h3>盤面</h3><ul><li>戦場${COLS}×${CONFIG.FIELD_ROWS}＋両端に「陣」が1行ずつ（${COLS}×${ROWS}）</li><li>お互いの王は自陣側の真ん中からスタート</li></ul>
-    <h3>手番</h3><ul><li>①カードを1枚引く</li><li>②マナの範囲で、手札の駒を自分の陣に置く＝<b>援軍</b>（何枚でも）</li>
-      <li>③駒を1つ動かす。陣から戦場へは1マス前にだけ進める＝<b>出陣</b></li><li>指令カードはマナが足りる限り何枚でも使える</li>
-      <li>駒を動かした後は援軍を出せない</li><li>戦場から陣へは入れない</li></ul>
+    <h3>盤面</h3><ul><li>${COLS}×${ROWS}。いちばん手前の行が自分の<b>陣</b></li><li>お互いの王は自分の陣の真ん中からスタート</li><li>陣にもほかのマスと同じように入れる</li></ul>
+    <h3>手番</h3><ul><li>①カードを1枚引く</li><li>②マナの範囲で、手札の駒を自分の陣の空いているマスに置く＝<b>援軍</b>（何枚でも）</li>
+      <li>③駒を1つ動かす（援軍で出した駒もすぐ動かせる）</li><li>指令カードはマナが足りる限り何枚でも使える</li>
+      <li>駒を動かした後は援軍を出せない</li><li>相手の駒が自分の陣にいると、そのマスには援軍を出せない</li></ul>
     <h3>マナ</h3><ul><li>先攻1・後攻2から始まり、毎ターン+1（最大3）</li></ul>
     <h3>駒を倒す</h3><ul><li>動いた先の相手の駒を倒せる。倒した駒は自分の手札に加わる</li><li>成りはなし</li></ul>
     <h3>勝利条件</h3><ul><li>相手の王を取ったら勝ち</li><li>山札が切れても負けにならず、引けないだけ</li></ul>

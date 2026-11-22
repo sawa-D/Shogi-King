@@ -115,3 +115,10 @@ button:disabled{opacity:.4;}
   #log{min-height:0;max-height:34px;overflow:hidden;}
   button{padding:8px 12px;}
 }
+
+/* 防人に守られている駒・突風で動けない駒 */
+.cell.guarded::after{content:"";position:absolute;inset:3px;border:2px dashed rgba(90,170,255,.85);border-radius:6px;pointer-events:none;}
+.piece.locked{opacity:.55;}
+.card{overflow:hidden;}
+.card .cdesc{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
+#hand{padding-top:10px;}
