@@ -5,7 +5,7 @@ let db = null;   // 編集中のデッキ { name, cards, dirty, msg }
 function openDeckBuilder(){
   const my = loadMyDeck();
   const base = my ? my.cards : CONFIG.DECK;
-  db = { name: my ? my.name : 'Myデッキ', cards: {}, dirty: false, msg: my ? '' : 'まだ保存されていません（標準デッキから作成）' };
+  db = { name: my ? my.name : 'Myデッキ', cards: {}, dirty: false, msg: !my ? 'まだ保存されていません（標準デッキから作成）' : (deckErrors(my.cards).length ? 'ルールが変わったため、このデッキは今のままでは使えません。組み直して保存してください' : '') };
   for(const k of Object.keys(CARDS)) if(k !== 'king') db.cards[k] = base[k] || 0;
   hideOverlay();
   $('#app').classList.add('hidden');
@@ -18,11 +18,10 @@ function closeDeckBuilder(){
   $('#app').classList.remove('hidden');
   showTitle();
 }
-const copyLimit = k => CONFIG.UNLIMITED.includes(k) ? Infinity : CONFIG.MAX_COPIES;
 
 function changeCount(k, delta){
   const n = db.cards[k] + delta;
-  if(n < 0 || n > copyLimit(k)) return;
+  if(n < 0 || n > cardLimit(k)) return;
   if(delta > 0 && deckTotal(db.cards) >= CONFIG.DECK_SIZE) return;
   db.cards[k] = n; db.dirty = true; db.msg = '';
   renderDeck();
@@ -30,7 +29,7 @@ function changeCount(k, delta){
 
 function cardRow(k){
   const d = CARDS[k], n = db.cards[k], total = deckTotal(db.cards);
-  const lim = copyLimit(k);
+  const lim = cardLimit(k);
   const canAdd = n < lim && total < CONFIG.DECK_SIZE;
   return `<div class="dk-row ${n ? 'in' : ''} ${d.kind==='piece' ? 'piece-card' : 'cmd-card'}">
     <div class="dk-kanji">${d.short}<span class="cost">${d.cost}</span></div>

@@ -191,14 +191,14 @@ function showRules(fromMenu){
   const pieces = Object.entries(CARDS).filter(([k,d])=>d.kind==='piece'&&k!=='king').map(([k,d])=>`<li>${d.name}（${d.cost}マナ）${d.desc}</li>`).join('');
   const cmds = Object.entries(CARDS).filter(([k,d])=>d.kind==='cmd').map(([k,d])=>`<li>${d.name}（${d.cost}マナ）${d.desc}</li>`).join('');
   showOverlay(`<h2>ルール</h2><div class="rules">
-    <h3>盤面</h3><ul><li>戦場5×5＋両端に「陣」が1行ずつ（7×5）</li><li>お互いの王は自陣側の真ん中からスタート</li></ul>
+    <h3>盤面</h3><ul><li>戦場${COLS}×${CONFIG.FIELD_ROWS}＋両端に「陣」が1行ずつ（${COLS}×${ROWS}）</li><li>お互いの王は自陣側の真ん中からスタート</li></ul>
     <h3>手番</h3><ul><li>①カードを1枚引く</li><li>②マナの範囲で、手札の駒を自分の陣に置く＝<b>援軍</b>（何枚でも）</li>
       <li>③駒を1つ動かす。陣から戦場へは1マス前にだけ進める＝<b>出陣</b></li><li>指令カードはマナが足りる限り何枚でも使える</li>
       <li>駒を動かした後は援軍を出せない</li><li>戦場から陣へは入れない</li></ul>
     <h3>マナ</h3><ul><li>先攻1・後攻2から始まり、毎ターン+1（最大3）</li></ul>
     <h3>駒を倒す</h3><ul><li>動いた先の相手の駒を倒せる。倒した駒は自分の手札に加わる</li><li>成りはなし</li></ul>
     <h3>勝利条件</h3><ul><li>相手の王を取ったら勝ち</li><li>山札が切れても負けにならず、引けないだけ</li></ul>
-    <h3>デッキ</h3><ul><li>${CONFIG.DECK_SIZE}枚ちょうど</li><li>同じカードは${CONFIG.MAX_COPIES}枚まで（歩兵は上限なし）</li><li>タイトルの「Myデッキ」で編集できる</li></ul>
+    <h3>デッキ</h3><ul><li>${CONFIG.DECK_SIZE}枚ちょうど</li><li>同じカードは${CONFIG.MAX_COPIES}枚まで（${Object.keys(CONFIG.LIMITS).map(k=>CARDS[k].name).join('・')}は1枚、歩兵は上限なし）</li><li>タイトルの「Myデッキ」で編集できる</li></ul>
     <h3>駒カード</h3><ul>${pieces}</ul>
     <h3>指令カード</h3><ul>${cmds}</ul>
   </div><div class="btns"><button class="primary" id="rc">閉じる</button></div>`);

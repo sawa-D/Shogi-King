@@ -1,6 +1,8 @@
 'use strict';
 /* ゲームの状態とルール */
 const ROWS = CONFIG.FIELD_ROWS + 2, COLS = CONFIG.COLS;
+document.documentElement.style.setProperty('--cols', COLS);
+document.documentElement.style.setProperty('--rows', ROWS);
 const $ = s => document.querySelector(s);
 let st = null;
 let ui = { sel:null, targets:[], prompt:'', warn:false, action:null, handoff:false, cpuBusy:false };
@@ -13,13 +15,18 @@ const inB = (r,c) => r >= 0 && r < ROWS && c >= 0 && c < COLS;
 let sleep = ms => new Promise(res => setTimeout(res, ms));
 
 function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+// カードごとの上限枚数
+function cardLimit(k){
+  if(CONFIG.UNLIMITED.includes(k)) return Infinity;
+  return CONFIG.LIMITS[k] ?? CONFIG.MAX_COPIES;
+}
 // デッキのチェック（オンライン対戦ではサーバー側でも同じ確認をする）
 function deckErrors(cards){
   const errs = []; let total = 0;
   for(const [k,n] of Object.entries(cards)){
     if(!CARDS[k] || k==='king'){ errs.push(`不明なカード：${k}`); continue; }
     if(!Number.isInteger(n) || n<0){ errs.push(`${CARDS[k].name}の枚数が不正です`); continue; }
-    if(n > CONFIG.MAX_COPIES && !CONFIG.UNLIMITED.includes(k)) errs.push(`${CARDS[k].name}は${CONFIG.MAX_COPIES}枚までです`);
+    if(n > cardLimit(k)) errs.push(`${CARDS[k].name}は${cardLimit(k)}枚までです`);
     total += n;
   }
   if(total !== CONFIG.DECK_SIZE) errs.push(`デッキは${CONFIG.DECK_SIZE}枚ちょうどにしてください（現在${total}枚）`);
@@ -72,9 +79,10 @@ function deckFor(mode, p){
 }
 function newGame(mode, first){
   const board = Array.from({length:ROWS}, () => Array(COLS).fill(null));
+  // 自陣側の真ん中（列数が偶数のときは、お互い自分から見て中央の右寄り＝点対称）
   const mid = Math.floor(COLS/2);
-  board[ROWS-2][mid] = {id:uid++, owner:0, type:'king'};   // 自陣側の真ん中
-  board[1][mid]      = {id:uid++, owner:1, type:'king'};
+  board[ROWS-2][mid]        = {id:uid++, owner:0, type:'king'};
+  board[1][COLS-1-mid]      = {id:uid++, owner:1, type:'king'};
   st = { mode, first, cur:first, board, over:false, winner:null, last:null,
          players:[0,1].map(p=>({deck:buildDeck(deckFor(mode,p)), hand:[], mana:0, maxMana:0, turns:0})),
          movesLeft:0, moved:false, log:[] };

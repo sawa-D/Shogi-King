@@ -2,7 +2,7 @@
   --bg:#1d1410; --panel:#2b1e17; --text:#f5e9d6; --muted:#b9a48a;
   --board:#d8a75c; --line:#6b4421; --jin:#7a4c25; --jin2:#5d3a1c;
   --piece:#f4dcaa; --pieceText:#1b1209; --accent:#e9b949; --red:#d9534f;
-  --cell:min(17vw, 8.6vh, 66px);
+  --cell:min(15vw, 7.2vh, 60px);
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
@@ -16,7 +16,7 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
 .bar.active{outline:2px solid var(--accent);}
 .mana{color:#7fc8ff;letter-spacing:1px;font-size:15px;}
 .mana .off{color:#4a5a66;}
-#board{display:grid;grid-template-columns:repeat(5,var(--cell));grid-template-rows:repeat(7,var(--cell));
+#board{display:grid;grid-template-columns:repeat(var(--cols),var(--cell));grid-template-rows:repeat(var(--rows),var(--cell));
   border:3px solid var(--line);border-radius:4px;background:var(--line);gap:1px;}
 .cell{background:var(--board);position:relative;display:flex;align-items:center;justify-content:center;cursor:pointer;}
 .cell.jin-mine{background:var(--jin);}
@@ -104,3 +104,14 @@ button:disabled{opacity:.4;}
 .dk-foot{position:sticky;bottom:0;display:flex;gap:6px;background:var(--bg);padding:10px 0 calc(env(safe-area-inset-bottom) + 10px);margin-top:10px;}
 .dk-foot button{flex:1;padding:12px 6px;font-size:13px;}
 .dk-foot #dkSave{flex:1.3;font-size:15px;}
+
+/* 画面の高さが小さい端末（iPhone SE など） */
+@media (max-height:720px){
+  :root{--cell:min(15vw, 6.6vh, 60px);}
+  #app{gap:4px;}
+  .card{height:88px;width:78px;}
+  .card .cdesc{display:none;}
+  #prompt{min-height:28px;}
+  #log{min-height:0;max-height:34px;overflow:hidden;}
+  button{padding:8px 12px;}
+}
