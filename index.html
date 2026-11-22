@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Shogi King">
+<title>Shogi King</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+  <div id="topbar" class="bar"></div>
+  <div id="board"></div>
+  <div id="botbar" class="bar"></div>
+  <div id="prompt"></div>
+  <div id="hand"></div>
+  <div id="controls">
+    <button id="btnMenu">メニュー</button>
+    <button id="btnEnd" class="primary">ターン終了</button>
+  </div>
+  <div id="log"></div>
+</div>
+<div id="overlay" class="hidden"></div>
+
+<script src="js/config.js"></script>
+<script src="js/game.js"></script>
+<script src="js/cpu.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>
