@@ -1,96 +1,100 @@
 'use strict';
 /* 画面の描画と操作 */
 /* ---------- 操作 ---------- */
-const viewer = () => st.mode==='2p' ? st.cur : 0;
-const myTurn = () => st && !st.over && !ui.handoff && !ui.cpuBusy && (st.mode==='2p' || st.cur===0);
+const viewer = () => match.mode==='2p' ? st.cur : 0;
+const myTurn = () => st && !st.over && !ui.handoff && !ui.cpuBusy && (match.mode==='2p' || st.cur===0);
 function clearSel(){ ui.sel=null; ui.targets=[]; ui.prompt=''; ui.action=null; ui.warn=false; }
 function setPrompt(t, warn){ ui.prompt=t; ui.warn=!!warn; }
 
-function onCard(idx){
+function onCard(cardId){
   if(!myTurn()) return;
-  const p = st.cur, card = st.players[p].hand[idx], d = CARDS[card.key];
-  if(ui.sel && ui.sel.type==='card' && ui.sel.idx===idx){ clearSel(); render(); return; }
+  const p = st.cur, card = Engine.findCard(st, p, cardId); if(!card) return;
+  const d = CARDS[card.key];
+  if(ui.sel && ui.sel.type==='card' && ui.sel.cardId===cardId){ clearSel(); render(); return; }
   clearSel();
   if(d.kind==='piece'){
-    if(st.moved) setPrompt('駒を動かした後は援軍を出せません', true);
-    else if(d.cost > st.players[p].mana) setPrompt('マナが足りません', true);
-    else if(!summonTargets(p).length) setPrompt('陣に空きがありません', true);
-    else { ui.sel={type:'card',idx}; ui.targets=summonTargets(p); setPrompt(`${d.name}（${d.desc}）を援軍に出す陣のマスを選んでください`); }
+    const block = Engine.summonBlock(st, p, cardId);
+    if(block) setPrompt(block, true);
+    else { ui.sel={type:'card',cardId}; ui.targets=Engine.summonTargets(st,p); setPrompt(`${d.name}（${d.desc}）を援軍に出す陣のマスを選んでください`); }
   } else {
-    if(d.cost > st.players[p].mana) setPrompt('マナが足りません', true);
+    const block = Engine.cmdBlock(st, p, cardId);
+    if(block) setPrompt(block, true);
     else if(d.targets){
-      if(!canCmd(p, idx)) setPrompt(`【${d.name}】対象にできる駒がありません`, true);
-      else { ui.sel={type:'card',idx,picks:[]}; ui.targets=cmdTargets(p, card.key, []); setPrompt(`【${d.name}】${d.desc}　→ ${d.targets[0].label}`); }
+      ui.sel={type:'card',cardId,picks:[]}; ui.targets=Engine.cmdTargets(st,p,card.key,[]);
+      setPrompt(`【${d.name}】${d.desc}　→ ${d.targets[0].label}`);
     } else {
-      ui.sel={type:'card',idx};
+      ui.sel={type:'card',cardId};
       setPrompt(`【${d.name}】${d.desc}`);
-      ui.action = {label:'使う', fn:()=>{ useCmd(p,idx); clearSel(); afterAction(); }};
+      ui.action = {label:'使う', fn:()=>{ clearSel(); dispatch({type:'command', cardId}); afterAction(); }};
     }
   }
   render();
 }
 function onCell(r, c){
   if(!myTurn()) return;
-  const p = st.cur;
-  if(ui.sel && ui.targets.some(t=>t.r===r&&t.c===c)){
-    if(ui.sel.type==='card'){
-      const d = CARDS[st.players[p].hand[ui.sel.idx].key];
-      if(d.kind==='piece') summon(p, ui.sel.idx, r, c);
+  const p = st.cur, sel = ui.sel;
+  const t = sel && ui.targets.find(t=>t.r===r&&t.c===c);
+  if(t){
+    if(sel.type==='card'){
+      const card = Engine.findCard(st, p, sel.cardId), d = CARDS[card.key];
+      if(d.kind==='piece'){ clearSel(); dispatch({type:'summon', cardId:sel.cardId, r, c}); }
       else {
         // 対象を順番に選ぶ（突風は2つ）
-        ui.sel.picks.push({r,c});
-        const key = st.players[p].hand[ui.sel.idx].key, next = d.targets[ui.sel.picks.length];
+        sel.picks.push({r,c});
+        const next = d.targets[sel.picks.length];
         if(next){
-          ui.targets = cmdTargets(p, key, ui.sel.picks);
+          ui.targets = Engine.cmdTargets(st, p, card.key, sel.picks);
           setPrompt(`【${d.name}】${next.label}`);
           render(); return;
         }
-        useCmd(p, ui.sel.idx, ui.sel.picks);
+        clearSel(); dispatch({type:'command', cardId:sel.cardId, picks:sel.picks});
       }
     } else {
-      const t = ui.targets.find(t=>t.r===r&&t.c===c);
-      if(t.launch) doLaunch(p, ui.sel.r, ui.sel.c, r, c); else doMove(p, ui.sel.r, ui.sel.c, r, c);
+      clearSel();
+      dispatch({type: t.launch ? 'launch' : 'move', from:{r:sel.r, c:sel.c}, to:{r, c}});
     }
-    clearSel(); afterAction(); return;
+    afterAction(); return;
   }
   const pc = st.board[r][c];
   clearSel();
   if(pc){
     const d = CARDS[pc.type];
     if(pc.owner===p){
-      if(st.movesLeft<=0) setPrompt(`${d.name}：このターンはもう駒を動かせません`, true);
-      else if(st.locked.has(pc.id)) setPrompt(`${d.name}：${st.locked.get(pc.id)}の効果で、このターンは移動できません`, true);
+      const block = Engine.moveBlock(st, p, r, c);
+      if(block) setPrompt(block, true);
       else {
-        const ms = movesFor(st.board,r,c), ls = launchesFor(st.board,r,c);
+        const ms = Engine.movesFor(st.board,r,c), ls = Engine.launchesFor(st.board,r,c);
         ui.sel={type:'piece',r,c}; ui.targets=[...ms, ...ls];
-        setPrompt(ls.length ? `${d.name}：前に1マス、またはオレンジのマスへ歩兵を撃ち出せます` : `${d.name}（${d.desc}）`);
-        if(!ms.length && ls.length) setPrompt(`${d.name}：オレンジのマスへ歩兵を撃ち出せます`);
-        else
-        if(!ms.length) setPrompt(`${d.name}：動ける場所がありません`, true);
+        if(ms.length && ls.length) setPrompt(`${d.name}：前に1マス、またはオレンジのマスへ歩兵を撃ち出せます`);
+        else if(ls.length)        setPrompt(`${d.name}：オレンジのマスへ歩兵を撃ち出せます`);
+        else if(ms.length)        setPrompt(`${d.name}（${d.desc}）`);
+        else                      setPrompt(`${d.name}：動ける場所がありません`, true);
       }
     } else setPrompt(`相手の${d.name}（${d.desc}）`);
   }
   render();
 }
-function afterAction(){ render(); if(st.over){ const g = st; setTimeout(() => { if(st === g) showResult(); }, 400); } }
+function afterAction(){ render(); if(st && st.over){ const g = st; setTimeout(() => { if(st === g) showResult(); }, 400); } }
 
 /* ---------- 描画 ---------- */
 function manaStr(pl){ return '◆'.repeat(pl.mana) + `<span class="off">${'◇'.repeat(Math.max(0,pl.maxMana-pl.mana))}</span>`; }
+// 手札・山札の枚数（オンラインでは相手の中身は届かず、枚数だけが届く）
+const handCount = pl => pl.handCount ?? pl.hand.length;
+const deckCount = pl => pl.deckCount ?? pl.deck.length;
 function barHtml(p){
   const pl = st.players[p];
   return `<span class="name">${st.cur===p&&!st.over?'▶ ':''}${pname(p)}</span>
     <span class="mana">${manaStr(pl)}</span>
-    <span>手札 ${pl.hand.length}　山札 ${pl.deck.length}</span>`;
+    <span>手札 ${handCount(pl)}　山札 ${deckCount(pl)}</span>`;
 }
 function render(){
   if(!st) return;
   const v = viewer(), flip = v===1;
-  const tset = new Set(ui.targets.map(t=>t.r+','+t.c));
   const boardEl = $('#board'); boardEl.innerHTML = '';
   for(let vr=0; vr<ROWS; vr++) for(let vc=0; vc<COLS; vc++){
     const r = flip ? ROWS-1-vr : vr, c = flip ? COLS-1-vc : vc;
     const cell = document.createElement('div'); cell.className = 'cell';
-    if(isJin(r)) cell.classList.add(r===jinRow(v) ? 'jin-mine' : 'jin-enemy');
+    if(Engine.isJin(r)) cell.classList.add(r===Engine.jinRow(v) ? 'jin-mine' : 'jin-enemy');
     const pc = st.board[r][c];
     const tg = ui.targets.find(t=>t.r===r&&t.c===c);
     if(tg) cell.classList.add(tg.launch ? 'target-launch' : (pc ? 'target-cap' : 'target'));
@@ -101,8 +105,8 @@ function render(){
     if(pc){
       const el = document.createElement('div');
       el.className = 'piece' + (pc.owner!==v ? ' enemy' : ' mine') + (pc.type==='king' ? ' king' : '') + (pc.type==='ryu' ? ' promoted' : '')
-                   + (st.locked.has(pc.id) || st.bindNext.some(m=>m.has(pc.id)) ? ' locked' : '');
-      if(guarded(st.board, r, c)) cell.classList.add('guarded');
+                   + (Engine.isBound(st, pc.id) ? ' locked' : '');
+      if(Engine.guarded(st.board, r, c)) cell.classList.add('guarded');
       el.textContent = pc.type==='king' && pc.owner===1 ? '玉' : CARDS[pc.type].short;
       cell.appendChild(el);
     }
@@ -115,15 +119,15 @@ function render(){
   // 手札
   const handEl = $('#hand'); handEl.innerHTML = '';
   const pl = st.players[v];
-  pl.hand.forEach((card, idx) => {
+  pl.hand.forEach(card => {
     const d = CARDS[card.key];
-    const usable = myTurn() && st.cur===v && (d.kind==='piece' ? canSummon(v,idx) : canCmd(v,idx));
+    const usable = myTurn() && st.cur===v && (d.kind==='piece' ? Engine.canSummon(st,v,card.id) : Engine.canCmd(st,v,card.id));
     const el = document.createElement('div');
     el.className = 'card ' + (d.kind==='piece' ? 'piece-card' : 'cmd-card') + (usable ? '' : ' dis')
-                 + (ui.sel && ui.sel.type==='card' && ui.sel.idx===idx ? ' sel' : '');
+                 + (ui.sel && ui.sel.type==='card' && ui.sel.cardId===card.id ? ' sel' : '');
     el.innerHTML = `<div class="cost">${d.cost}</div><div class="kanji">${d.short}</div>
       <div class="cname">${d.name}</div><div class="tag">${d.kind==='piece'?'駒':'指令'}</div><div class="cdesc">${d.desc}</div>`;
-    el.onclick = () => onCard(idx);
+    el.onclick = () => onCard(card.id);
     handEl.appendChild(el);
   });
   if(!pl.hand.length) handEl.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:20px">手札がありません</div>';
@@ -135,7 +139,7 @@ function render(){
     if(st.over) text = `${pname(st.winner)}の勝ち！`;
     else if(ui.cpuBusy) text = 'CPUが考え中…';
     else if(myTurn()){
-      if(inCheck(st.cur)){ text = '王手されています！'; warn = true; }
+      if(Engine.inCheck(st, st.cur)){ text = '王手されています！'; warn = true; }
       else if(st.movesLeft<=0) text = 'ターン終了を押してください（指令はまだ使えます）';
       else if(st.moved) text = 'もう1回駒を動かせます';
       else text = 'カードで援軍・指令を出すか、駒を動かしましょう';
@@ -148,7 +152,7 @@ function render(){
     const b2 = document.createElement('button'); b2.textContent = 'やめる'; b2.onclick = ()=>{ clearSel(); render(); }; pr.appendChild(b2);
   }
   $('#btnEnd').disabled = !myTurn();
-  $('#log').innerHTML = st.log.map((l,i)=>`<div style="opacity:${1-i*.2}">${l}</div>`).join('');
+  $('#log').innerHTML = match.log.map((l,i)=>`<div style="opacity:${1-i*.2}">${l}</div>`).join('');
 }
 
 /* ---------- 画面 ---------- */
@@ -175,7 +179,7 @@ function showTitle(){
     </div>
     <p id="deckNote"></p>`);
   const my = loadMyDeck();
-  $('#deckNote').textContent = my && !deckErrors(my.cards).length ? `使用デッキ：${my.name}` : '使用デッキ：標準デッキ';
+  $('#deckNote').textContent = my && !Engine.deckErrors(my.cards).length ? `使用デッキ：${my.name}` : '使用デッキ：標準デッキ';
   $('#m6').onclick = () => openDeckBuilder();
   $('#m1').onclick = () => newGame('cpu',0);
   $('#m2').onclick = () => newGame('cpu',1);
@@ -204,7 +208,7 @@ function confirmTitle(){
 }
 function toTitle(){
   stopBgm();
-  st = null; ui.cpuBusy = false; ui.handoff = false; clearSel();
+  st = null; match = null; ui.cpuBusy = false; ui.handoff = false; clearSel();
   $('#board').innerHTML = ''; $('#hand').innerHTML = ''; $('#topbar').innerHTML = ''; $('#botbar').innerHTML = '';
   $('#prompt').innerHTML = ''; $('#log').innerHTML = '';
   showTitle();
@@ -216,7 +220,7 @@ function showHandoff(){
   $('#hb').onclick = () => { ui.handoff=false; hideOverlay(); render(); };
 }
 function showResult(){
-  const win = st.mode==='cpu' ? (st.winner===0 ? '勝利！' : '敗北…') : `${pname(st.winner)}の勝ち！`;
+  const win = match.mode==='cpu' ? (st.winner===0 ? '勝利！' : '敗北…') : `${pname(st.winner)}の勝ち！`;
   showOverlay(`<h1>${win}</h1><p>${pname(st.winner)}が相手の王を討ち取りました</p>
     <div class="btns"><button class="primary" id="rb">タイトルに戻る</button><button id="rb2">盤面を見る</button></div>`);
   $('#rb').onclick = toTitle; $('#rb2').onclick = hideOverlay;

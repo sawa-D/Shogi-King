@@ -5,7 +5,7 @@ let db = null;   // 編集中のデッキ { name, cards, dirty, msg }
 function openDeckBuilder(){
   const my = loadMyDeck();
   const base = my ? my.cards : CONFIG.DECK;
-  db = { name: my ? my.name : 'Myデッキ', cards: {}, dirty: false, msg: !my ? 'まだ保存されていません（標準デッキから作成）' : (deckErrors(my.cards).length ? 'ルールが変わったため、このデッキは今のままでは使えません。組み直して保存してください' : '') };
+  db = { name: my ? my.name : 'Myデッキ', cards: {}, dirty: false, msg: !my ? 'まだ保存されていません（標準デッキから作成）' : (Engine.deckErrors(my.cards).length ? 'ルールが変わったため、このデッキは今のままでは使えません。組み直して保存してください' : '') };
   for(const k of Object.keys(CARDS)) if(!CARDS[k].token) db.cards[k] = base[k] || 0;
   hideOverlay();
   $('#app').classList.add('hidden');
@@ -21,15 +21,15 @@ function closeDeckBuilder(){
 
 function changeCount(k, delta){
   const n = db.cards[k] + delta;
-  if(n < 0 || n > cardLimit(k)) return;
-  if(delta > 0 && deckTotal(db.cards) >= CONFIG.DECK_SIZE) return;
+  if(n < 0 || n > Engine.cardLimit(k)) return;
+  if(delta > 0 && Engine.deckTotal(db.cards) >= CONFIG.DECK_SIZE) return;
   db.cards[k] = n; db.dirty = true; db.msg = '';
   renderDeck();
 }
 
 function cardRow(k){
-  const d = CARDS[k], n = db.cards[k], total = deckTotal(db.cards);
-  const lim = cardLimit(k);
+  const d = CARDS[k], n = db.cards[k], total = Engine.deckTotal(db.cards);
+  const lim = Engine.cardLimit(k);
   const canAdd = n < lim && total < CONFIG.DECK_SIZE;
   return `<div class="dk-row ${n ? 'in' : ''} ${d.kind==='piece' ? 'piece-card' : 'cmd-card'}">
     <div class="dk-kanji">${d.short}<span class="cost">${d.cost}</span></div>
@@ -43,7 +43,7 @@ function cardRow(k){
 }
 
 function renderDeck(){
-  const total = deckTotal(db.cards), errs = deckErrors(db.cards);
+  const total = Engine.deckTotal(db.cards), errs = Engine.deckErrors(db.cards);
   const keys = Object.keys(CARDS).filter(k => !CARDS[k].token);
   const pieces = keys.filter(k => CARDS[k].kind === 'piece'), cmds = keys.filter(k => CARDS[k].kind === 'cmd');
   const sum = ks => ks.reduce((a,k) => a + db.cards[k], 0);
@@ -81,7 +81,7 @@ function renderDeck(){
   $('#dkReset').onclick = () => { for(const k of keys) db.cards[k] = CONFIG.DECK[k] || 0; db.dirty = true; db.msg = '標準デッキの内容にしました（未保存）'; renderDeck(); };
   $('#dkClear').onclick = () => { for(const k of keys) db.cards[k] = 0; db.dirty = true; db.msg = ''; renderDeck(); };
   $('#dkSave').onclick = () => {
-    if(deckErrors(db.cards).length) return;
+    if(Engine.deckErrors(db.cards).length) return;
     const ok = saveMyDeck(db.name.trim() || 'Myデッキ', db.cards);
     db.dirty = !ok; db.msg = ok ? '保存しました' : '保存できませんでした（ブラウザの設定を確認してください）';
     renderDeck();
@@ -92,7 +92,7 @@ function renderDeck(){
 function confirmLeaveDeck(){
   showOverlay(`<h2>保存せずに戻りますか？</h2><p>変更した内容は失われます</p>
     <div class="btns"><button class="primary" id="dlSave">保存して戻る</button><button id="dlLeave">保存せずに戻る</button><button id="dlCancel">キャンセル</button></div>`);
-  const valid = !deckErrors(db.cards).length;
+  const valid = !Engine.deckErrors(db.cards).length;
   if(!valid){ $('#dlSave').disabled = true; $('#dlSave').textContent = `保存して戻る（${CONFIG.DECK_SIZE}枚ちょうどで保存できます）`; }
   $('#dlSave').onclick = () => {
     const name = db.name.trim() || 'Myデッキ';

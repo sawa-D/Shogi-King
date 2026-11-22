@@ -1,6 +1,7 @@
 'use strict';
-/* カードと数値の設定（ここを書き換えてバランス調整） */
-const CONFIG = {
+/* カードと数値の設定（ここを書き換えてバランス調整）
+   ブラウザでもサーバー（Node.js）でも読み込めるようにしてある */
+var CONFIG = {
   COLS: 5,            // 盤の列数（奇数にすると王が真ん中に置ける）
   ROWS: 5,            // 盤の行数（いちばん手前の行が自分の陣＝援軍を置ける行）
   HAND_START: 4,      // 初期手札
@@ -15,11 +16,11 @@ const CONFIG = {
   DECK: { fu:5, bakuhei:1, kyo:1, kin:2, sakimori:2, houhei:2, kaku:1, hi:1,  hokyu:1, tettai:1, rakurai:1, toppu:1, ryuka:1 },
 };
 
-const ORTHO = [[1,0],[-1,0],[0,1],[0,-1]];
-const DIAG  = [[1,1],[1,-1],[-1,1],[-1,-1]];
+var ORTHO = [[1,0],[-1,0],[0,1],[0,-1]];
+var DIAG  = [[1,1],[1,-1],[-1,1],[-1,-1]];
 // 移動方向は [前方向の量, 横方向の量]（自分から見て）
 // token:true はデッキに入れられない駒（王・龍）。base は倒されたときや手札に戻るときの元の駒
-const CARDS = {
+var CARDS = {
   king:   { name:'王将', short:'王', kind:'piece', token:true, cost:0, value:100, step:[...ORTHO,...DIAG], desc:'全方向に1マス' },
   fu:     { name:'歩兵', short:'歩', kind:'piece', cost:1, value:1, step:[[1,0]], desc:'前に1マス' },
   bakuhei:{ name:'縛兵', short:'縛', kind:'piece', cost:1, value:1, step:[[1,0]], cantCapture:['fu'], binds:true,
@@ -44,3 +45,5 @@ const CARDS = {
                      {side:'own',   king:true, shift:true, label:'左へ動かす自分の駒を選んでください'}],
             desc:'相手の駒と自分の駒を1つずつ選び、それぞれ1マス左へ。動かした駒はこのターン移動できない' },
 };
+
+if(typeof module === 'object' && module.exports) module.exports = { CONFIG, CARDS };
