@@ -12,11 +12,18 @@
   const { CARDS, ROWS, COLS } = E;
   const val = t => CARDS[t].value;
 
-  function pickSpot(state, p, spots){
+  function pickSpot(state, p, spots, key){
     const B = state.board;
     return spots.map(s => {
       const fr = s.r + E.fwd(p);
       let sc = Math.random();
+      if(state.ambush){
+        // 伏兵：相手の王や駒を狙えて、狙われにくいマスを選ぶ
+        const nb = E.copyBoard(B); nb[s.r][s.c] = { id:-1, owner:p, type:key };
+        for(const m of E.movesFor(nb, s.r, s.c)){ const t = nb[m.r][m.c]; if(t) sc += t.type==='king' ? 20 : val(t.type)*2; }
+        if(E.attacked(nb, s.r, s.c, 1-p)) sc -= val(key)*3;
+        return { s, sc };
+      }
       if(E.inB(fr, s.c)){
         if(!B[fr][s.c]) sc += 2;
         else if(B[fr][s.c].owner !== p) sc += 3;
@@ -97,10 +104,12 @@
     }
     if((c = card('ryuka'))) return cmd(c, [E.cmdTargets(state,p,'ryuka')[0]]);
     if((c = card('toppu'))){ const t = bestToppu(state,p); if(t) return cmd(c, t); }
+    // 伏兵：伏兵のコスト＋出せる駒のコストのマナがあれば使う
+    if((c = card('fukuhei')) && pl.hand.some(x => CARDS[x.key].kind==='piece' && CARDS[x.key].cost + CARDS.fukuhei.cost <= pl.mana)) return cmd(c);
     // 援軍（コストの高い駒から）
     const cands = pl.hand.filter(x => E.canSummon(state,p,x.id))
       .sort((a,b)=>CARDS[b.key].cost-CARDS[a.key].cost + (Math.random()-.5)*.5);
-    if(cands.length){ const s = pickSpot(state, p, E.summonTargets(state,p)); return { type:'summon', p, cardId:cands[0].id, r:s.r, c:s.c }; }
+    if(cands.length){ const s = pickSpot(state, p, E.summonTargets(state,p), cands[0].key); return { type:'summon', p, cardId:cands[0].id, r:s.r, c:s.c }; }
     if((c = card('shingun')) && !state.moved) return cmd(c);
     // 移動
     if(state.movesLeft > 0){

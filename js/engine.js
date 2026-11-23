@@ -121,9 +121,13 @@
   const isBound = (state, id) => !!(state.locked[id] || state.bindNext[0][id] || state.bindNext[1][id]);
   const findCard = (state, p, cardId) => state.players[p].hand.find(c => c.id === cardId) || null;
 
+  // 援軍を出せるマス：ふだんは自分の陣の空きマス。伏兵を使ったあとの次の1回は、陣以外の空きマス
   function summonTargets(state, p){
-    const r = jinRow(p), out = [];
-    for(let c=0;c<COLS;c++) if(!state.board[r][c]) out.push({r,c});
+    const out = [];
+    for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+      if(state.board[r][c]) continue;
+      if(state.ambush ? !isJin(r) : r === jinRow(p)) out.push({r,c});
+    }
     return out;
   }
   // 援軍を出せない理由（出せるなら null）
@@ -133,7 +137,7 @@
     if(d.kind !== 'piece') return '駒カードではありません';
     if(state.moved) return '駒を動かした後は援軍を出せません';
     if(d.cost > state.players[p].mana) return 'マナが足りません';
-    if(!summonTargets(state,p).length) return '陣に空きがありません';
+    if(!summonTargets(state,p).length) return state.ambush ? '陣以外に空きマスがありません' : '陣に空きがありません';
     return null;
   }
   const canSummon = (state, p, cardId) => !summonBlock(state, p, cardId);
@@ -163,6 +167,10 @@
     const d = CARDS[card.key];
     if(d.kind !== 'cmd') return '指令カードではありません';
     if(d.cost > state.players[p].mana) return 'マナが足りません';
+    if(card.key === 'fukuhei'){
+      if(state.moved) return '駒を動かした後は援軍を出せません';
+      if(state.ambush) return 'すでに伏兵の効果が出ています';
+    }
     const ok = (d.targets || []).every((_, i) => cmdTargets(state, p, card.key, Array(i).fill(null)).length > 0);
     if(!ok) return `【${d.name}】対象にできる駒がありません`;
     return null;
@@ -196,6 +204,7 @@
     state.movesLeft = 1; state.moved = false;
     // 縛兵を取った駒は、持ち主の次のターンに動けない
     state.locked = state.bindNext[p]; state.bindNext[p] = {};
+    state.ambush = false;
     events.push({ type:'turnStart', p, mana: pl.mana, turn: state.turn });
     draw(state, p, 1, events);
   }
@@ -216,6 +225,7 @@
       players: [0,1].map(() => ({ deck: [], hand: [], mana: 0, maxMana: 0, turns: 0 })),
       movesLeft: 0, moved: false,
       locked: {},                 // このターン動けない駒 { 駒id: 理由 }
+      ambush: false,              // 伏兵の効果中（次の援軍を陣以外に出す）
       bindNext: [{}, {}],         // 次のターンに動けなくなる駒（プレイヤーごと）
     };
     // 王は自分の陣の真ん中（列数が偶数のときは、お互い自分から見て中央の右寄り＝点対称）
@@ -245,11 +255,13 @@
       case 'summon': {
         const { cardId, r, c } = action;
         const block = summonBlock(state, p, cardId); if(block) return fail(block);
-        if(r !== jinRow(p) || !inB(r,c) || state.board[r][c]) return fail('そのマスには援軍を出せません');
+        if(!summonTargets(state,p).some(t=>t.r===r&&t.c===c)) return fail('そのマスには援軍を出せません');
+        const ambush = !!state.ambush;
         const pl = state.players[p], card = pl.hand.splice(pl.hand.findIndex(x=>x.id===cardId), 1)[0];
         pl.mana -= CARDS[card.key].cost;
         state.board[r][c] = { id: card.id, owner: p, type: card.key };
-        events.push({ type:'summon', p, card: card.key, r, c });
+        state.ambush = false;
+        events.push({ type:'summon', p, card: card.key, r, c, ambush });
         break;
       }
       case 'command': {
@@ -265,6 +277,7 @@
         const t = picks[0], ev = { type:'command', p, card: card.key };
         switch(card.key){
           case 'shingun': state.movesLeft++; break;
+          case 'fukuhei': state.ambush = true; break;
           case 'hokyu':   ev.drawn = draw(state, p, 2, events); break;
           case 'tettai': { const pc = state.board[t.r][t.c]; state.board[t.r][t.c] = null;
                            pl.hand.push({ id: pc.id, key: baseType(pc.type) }); ev.piece = pc.type; break; }

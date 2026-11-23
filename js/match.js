@@ -49,7 +49,7 @@ function describe(ev){
   switch(ev.type){
     case 'turnStart': return `${who}のターン（マナ${ev.mana}）`;
     case 'deckEmpty': return `${who}の山札が切れているため引けません`;
-    case 'summon':    return `${who}：${N(ev.card)}を援軍に出した`;
+    case 'summon':    return ev.ambush ? `${who}：${N(ev.card)}を伏兵として送り込んだ！` : `${who}：${N(ev.card)}を援軍に出した`;
     case 'move':
       if(!ev.captured) return `${who}：${N(ev.piece)}が移動した`;
       if(ev.captured === 'king') return `${who}が王を討ち取った！`;
@@ -62,6 +62,7 @@ function describe(ev){
     case 'command':
       switch(ev.card){
         case 'shingun': return `${who}：【進軍】駒をもう1回動かせる`;
+        case 'fukuhei': return `${who}：【伏兵】次の援軍を陣の外に出せる`;
         case 'hokyu':   return `${who}：【補給】カードを${ev.drawn}枚引いた`;
         case 'tettai':  return `${who}：【撤退】${N(ev.piece)}を手札に戻した`;
         case 'rakurai': return `${who}：【落雷】${N(ev.piece)}を破壊した`;

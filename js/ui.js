@@ -15,7 +15,7 @@ function onCard(cardId){
   if(d.kind==='piece'){
     const block = Engine.summonBlock(st, p, cardId);
     if(block) setPrompt(block, true);
-    else { ui.sel={type:'card',cardId}; ui.targets=Engine.summonTargets(st,p); setPrompt(`${d.name}（${d.desc}）を援軍に出す陣のマスを選んでください`); }
+    else { ui.sel={type:'card',cardId}; ui.targets=Engine.summonTargets(st,p); setPrompt(st.ambush ? `${d.name}（${d.desc}）を伏兵として出すマスを選んでください（陣以外）` : `${d.name}（${d.desc}）を援軍に出す陣のマスを選んでください`); }
   } else {
     const block = Engine.cmdBlock(st, p, cardId);
     if(block) setPrompt(block, true);
@@ -144,6 +144,7 @@ function render(){
     else if(myTurn()){
       if(Engine.inCheck(st, st.cur)){ text = '王手されています！'; warn = true; }
       else if(st.movesLeft<=0) text = 'ターン終了を押してください（指令はまだ使えます）';
+      else if(st.ambush) text = '伏兵：次に援軍に出す駒は、陣以外の空きマスに出せます';
       else if(st.moved) text = 'もう1回駒を動かせます';
       else text = 'カードで援軍・指令を出すか、駒を動かしましょう';
     }
