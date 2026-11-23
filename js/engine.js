@@ -261,6 +261,7 @@
         pl.mana -= CARDS[card.key].cost;
         state.board[r][c] = { id: card.id, owner: p, type: card.key };
         state.ambush = false;
+        if(ambush) state.locked[card.id] = '伏兵';      // 伏兵で出した駒は、このターン移動できない
         events.push({ type:'summon', p, card: card.key, r, c, ambush });
         break;
       }

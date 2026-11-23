@@ -36,7 +36,7 @@ var CARDS = {
   ryu:    { name:'龍',   short:'龍', kind:'piece', token:true, base:'hi', cost:3, value:7, slide:ORTHO, range:2, step:[...ORTHO,...DIAG], desc:'縦横に2マス先まで＋周囲8マス' },
   shingun:{ name:'進軍', short:'進', kind:'cmd', cost:3, desc:'このターン、駒をもう1回動かせる' },
   hokyu:  { name:'補給', short:'補', kind:'cmd', cost:1, desc:'カードを2枚引く' },
-  fukuhei:{ name:'伏兵', short:'伏', kind:'cmd', cost:1, desc:'このターン、次に援軍に出す駒は陣以外の空きマスに出す' },
+  fukuhei:{ name:'伏兵', short:'伏', kind:'cmd', cost:1, desc:'このターン、次に援軍に出す駒は陣以外の空きマスに出す。その駒はこのターン移動できない' },
   tettai: { name:'撤退', short:'撤', kind:'cmd', cost:1, targets:[{side:'own', label:'手札に戻す自分の駒を選んでください'}], desc:'自分の駒1つ(王以外)を手札に戻す' },
   rakurai:{ name:'落雷', short:'雷', kind:'cmd', cost:3, targets:[{side:'enemy', label:'破壊する相手の駒を選んでください'}], desc:'相手の駒1つ(王以外)を破壊' },
   ryuka:  { name:'龍化', short:'龍', kind:'cmd', cost:1,
