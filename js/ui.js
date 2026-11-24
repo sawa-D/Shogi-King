@@ -168,6 +168,9 @@ let turnBannerTimer = null;
 function showTurnBanner(){
   let el = $('#turnBanner');
   if(!el){ el = document.createElement('div'); el.id = 'turnBanner'; el.setAttribute('role','status'); el.innerHTML = '<span>YOUR TURN</span>'; document.body.appendChild(el); }
+  // 盤面の中央の高さに出す
+  const b = $('#board').getBoundingClientRect();
+  el.style.top = `${b.top + b.height/2}px`;
   el.classList.remove('show'); void el.offsetWidth;   // アニメーションを最初から
   el.classList.add('show');
   clearTimeout(turnBannerTimer);
