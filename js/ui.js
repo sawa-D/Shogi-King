@@ -83,7 +83,7 @@ const handCount = pl => pl.handCount ?? pl.hand.length;
 const deckCount = pl => pl.deckCount ?? pl.deck.length;
 function barHtml(p){
   const pl = st.players[p];
-  return `<span class="name">${st.cur===p&&!st.over?'▶ ':''}${escapeHtml(pname(p))}<span class="clock" data-p="${p}">${onlineClockText(p)}</span></span>
+  return `<span class="name">${st.cur===p&&!st.over?'▶ ':''}${escapeHtml(pname(p))}<span class="clock" data-p="${p}">${clockHtml(p)}</span></span>
     <span class="mana">${manaStr(pl)}</span>
     <span>手札 ${handCount(pl)}　山札 ${deckCount(pl)}</span>`;
 }
@@ -143,10 +143,10 @@ function render(){
     else if(isOnline() && st.cur!==match.you) text = `${pname(st.cur)}の番です`;
     else if(myTurn()){
       if(Engine.inCheck(st, st.cur)){ text = '王手されています！'; warn = true; }
-      else if(st.movesLeft<=0) text = 'ターン終了を押してください（指令はまだ使えます）';
+      else if(!Engine.hasLegalMove(st, st.cur)){ text = '動かせる駒がありません。援軍を出すか、パスしてください'; warn = true; }
       else if(st.ambush) text = '伏兵：次に援軍に出す駒は、陣以外の空きマスに出せます';
-      else if(st.moved) text = 'もう1回駒を動かせます';
-      else text = 'カードで援軍・指令を出すか、駒を動かしましょう';
+      else if(st.moved) text = 'もう1回駒を動かしてください（進軍）';
+      else text = '援軍・指令のあと、駒を1つ動かすとターン終了です';
     }
   }
   const span = document.createElement('span'); span.textContent = text; pr.appendChild(span);
@@ -157,7 +157,8 @@ function render(){
     const b = document.createElement('button'); b.className='primary'; b.textContent = ui.action.label; b.onclick = ui.action.fn; pr.appendChild(b);
     const b2 = document.createElement('button'); b2.textContent = 'やめる'; b2.onclick = ()=>{ clearSel(); render(); }; pr.appendChild(b2);
   }
-  $('#btnEnd').disabled = !myTurn();
+  // 動かせる駒が1つもないときだけパスできる
+  $('#btnPass').classList.toggle('hidden', !(myTurn() && !Engine.hasLegalMove(st, st.cur)));
   $('#log').innerHTML = match.log.map((l,i)=>`<div style="opacity:${1-i*.2}">${l}</div>`).join('');
 }
 
@@ -233,7 +234,8 @@ function showHandoff(){
   ui.handoff = true;
   showOverlay(`<h2>${pname(st.cur)}の番です</h2><p>相手に画面が見えないように交代してください</p>
     <div class="btns"><button class="primary" id="hb">開始</button></div>`);
-  $('#hb').onclick = () => { ui.handoff=false; hideOverlay(); render(); };
+  // 交代の画面を閉じたときから、その人の持ち時間を数え始める
+  $('#hb').onclick = () => { ui.handoff=false; Engine.restartTurnClock(st, Date.now()); hideOverlay(); render(); };
 }
 // 決着の理由（オンライン用）
 function resultReason(youWin){
@@ -260,7 +262,7 @@ function showResult(){
     return;
   }
   const win = match.mode==='cpu' ? (st.winner===0 ? '勝利！' : '敗北…') : `${pname(st.winner)}の勝ち！`;
-  showOverlay(`<h1>${win}</h1><p>${pname(st.winner)}が相手の王を討ち取りました</p>
+  showOverlay(`<h1>${win}</h1><p>${st.reason==='timeout' ? `${pname(1-st.winner)}の持ち時間が切れました` : `${pname(st.winner)}が相手の王を討ち取りました`}</p>
     <div class="btns"><button class="primary" id="rb">タイトルに戻る</button><button id="rb2">盤面を見る</button></div>`);
   $('#rb').onclick = toTitle; $('#rb2').onclick = hideOverlay;
 }
@@ -270,8 +272,10 @@ function showRules(fromMenu){
   showOverlay(`<h2>ルール</h2><div class="rules">
     <h3>盤面</h3><ul><li>${COLS}×${ROWS}。いちばん手前の行が自分の<b>陣</b></li><li>お互いの王は自分の陣の真ん中からスタート</li><li>陣にもほかのマスと同じように入れる</li></ul>
     <h3>手番</h3><ul><li>①カードを1枚引く</li><li>②マナの範囲で、手札の駒を自分の陣の空いているマスに置く＝<b>援軍</b>（何枚でも）</li>
-      <li>③駒を1つ動かす（援軍で出した駒もすぐ動かせる）</li><li>指令カードはマナが足りる限り何枚でも使える</li>
-      <li>駒を動かした後は援軍を出せない</li><li>相手の駒が自分の陣にいると、そのマスには援軍を出せない</li></ul>
+      <li>③駒を<b>必ず1つ動かす</b>（援軍で出した駒もすぐ動かせる）。動かすと自動でターン終了</li>
+      <li>指令カードはマナが足りる限り何枚でも使える</li><li>援軍・指令は駒を動かす前だけ</li>
+      <li>動かせる駒が1つもないときだけ、パスしてターンを終えられる</li><li>相手の駒が自分の陣にいると、そのマスには援軍を出せない</li></ul>
+    <h3>持ち時間</h3><ul><li>1ターン${CONFIG.TURN_SEC}秒は自由に使える</li><li>それを過ぎると、各自の持ち時間（全体で${CONFIG.BANK_SEC/60}分）から減っていく</li><li>持ち時間が0になったら負け</li></ul>
     <h3>マナ</h3><ul><li>先攻1・後攻2から始まり、毎ターン+1（最大3）</li></ul>
     <h3>駒を倒す</h3><ul><li>動いた先の相手の駒を倒せる。倒した駒は自分の手札に加わる</li><li>成りはなし</li></ul>
     <h3>勝利条件</h3><ul><li>相手の王を取ったら勝ち</li><li>山札が切れても負けにならず、引けないだけ</li></ul>
@@ -282,6 +286,6 @@ function showRules(fromMenu){
   $('#rc').onclick = () => { if(fromMenu) showMenu(); else if(!st || st.over) showTitle(); else if(ui.handoff) showHandoff(); else hideOverlay(); };
 }
 
-$('#btnEnd').onclick = () => { if(myTurn()) endTurn(); };
+$('#btnPass').onclick = () => { if(myTurn()) passTurn(); };
 $('#btnMenu').onclick = () => showMenu();
 showTitle();

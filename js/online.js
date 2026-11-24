@@ -13,7 +13,7 @@ const ONLINE = {
 try { const q = new URLSearchParams(location.search).get('server'); if(q) ONLINE.SERVER = q.replace(/\/$/, ''); } catch(e){}
 
 const ONLINE_PID_KEY = 'shogiking.pid', ONLINE_NAME_KEY = 'shogiking.name';
-const net = { ws:null, code:null, leaving:false, retry:0, retryTimer:null, room:null, offset:0, tick:null, connecting:false };
+const net = { ws:null, code:null, leaving:false, retry:0, retryTimer:null, room:null, offset:0, connecting:false };
 
 // 端末ごとのID（名前とは別。再接続のときに同じ人だとわかるように使う）
 function onlinePid(){
@@ -132,7 +132,7 @@ document.addEventListener('visibilitychange', () => {
 // 自分から抜ける（対局中なら降参になる）
 function leaveOnline(){
   net.leaving = true;
-  clearTimeout(net.retryTimer); clearInterval(net.tick); net.tick = null;
+  clearTimeout(net.retryTimer);
   if(net.ws){ try { net.ws.send(JSON.stringify({ t:'leave' })); } catch(e){} const ws = net.ws; net.ws = null; setTimeout(() => { try { ws.close(); } catch(e){} }, 100); }
   net.code = null; net.room = null;
 }
@@ -176,32 +176,17 @@ function onServerMessage(m){
   ui.pending = false;
   handleEvents(m.events);
   if(m.events.some(e => e.type === 'turnStart')) clearSel();
-  startOnlineTick();
+  startClockTick();
   render();
   if(st.over && (m.events.some(e => e.type === 'gameOver') || firstView)) setTimeout(() => { if(isOnline() && st.over) showResult(); }, 400);
   else if(st.over && $('#rmWait')) showResult();  // 再戦待ちの表示を更新
 }
 
-/* ---------- 残り時間・相手の接続状態 ---------- */
-const fmtTime = ms => { const s = Math.max(0, Math.ceil(ms / 1000)); return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`; };
-function startOnlineTick(){
-  if(net.tick) return;
-  net.tick = setInterval(updateOnlineClock, 500);
-}
-// 手番の残り時間（バーに表示）
-function onlineClockText(p){
-  if(!isOnline() || !net.room || !st || st.over || st.cur !== p || !net.room.deadline) return '';
-  return `残り${fmtTime(net.room.deadline - serverNow())}`;
-}
+/* ---------- 相手の接続状態 ---------- */
 // 相手が切断中なら、あと何秒で相手の負けか
 function opponentDisconnectText(){
   if(!isOnline() || !net.room || !st || st.over) return '';
   const opp = net.room.players[1 - match.you];
   if(!opp || opp.connected || !opp.discAt) return '';
   return `相手の接続が切れました。再接続を待っています（あと${Math.max(0, Math.ceil((opp.discAt + net.room.disconnectLimitMs - serverNow())/1000))}秒で相手の負け）`;
-}
-function updateOnlineClock(){
-  if(!isOnline()){ clearInterval(net.tick); net.tick = null; return; }
-  document.querySelectorAll('.clock').forEach(el => { el.textContent = onlineClockText(Number(el.dataset.p)); });
-  const d = $('#oppDisc'); if(d) d.textContent = opponentDisconnectText();
 }

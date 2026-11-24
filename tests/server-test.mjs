@@ -1,5 +1,5 @@
 // 対戦サーバーの動作確認（ルーム・対局・再戦・降参・満員・切断・時間切れ）
-// 使い方：server フォルダで  npx wrangler dev --var TURN_MS:6000 --var DISCONNECT_MS:4000  を起動してから
+// 使い方：server フォルダで  npx wrangler dev --var TURN_MS:2000 --var BANK_MS:8000 --var DISCONNECT_MS:4000  を起動してから
 //         node tests/server-test.mjs
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
@@ -42,7 +42,7 @@ const ok = (label, cond) => console.log((cond?'OK  ':'NG  ')+label);
     const before = a.last.seq;
     me.send({t:'action', action});
     for(let i=0;i<100 && a.last.seq===before && me.errors.length===errs;i++) await sleep(5);
-    if(me.errors.length>errs){ errs=me.errors.length; console.log('  error:', me.errors.at(-1)); me.send({t:'action', action:{type:'endTurn'}}); await sleep(50); }
+    if(me.errors.length>errs){ errs=me.errors.length; console.log('  error:', me.errors.at(-1)); break; }
     steps++;
   }
   ok(`対局が決着（${steps}手, エラー${errs}件, 勝者 ${a.last.view.winner}, 理由 ${a.last.view.reason}）`, a.last.view.over && b.last.view.over);
@@ -90,7 +90,9 @@ const ok = (label, cond) => console.log((cond?'OK  ':'NG  ')+label);
   const a = client(code,'ta','A'), b = client(code,'tb','B');
   await a.open(); await b.open(); await sleep(300);
   const cur = a.last.view.cur;
-  await sleep(6800);
+  await sleep(5000);
+  ok('30秒（テストでは2秒）を過ぎると持ち時間が減る', !a.last.view.over);
+  await sleep(5800);
   ok('持ち時間切れで負け', a.last.view.over && a.last.view.reason==='timeout' && a.last.view.winner===1-cur);
   a.ws.close(); b.ws.close();
 }

@@ -32,7 +32,7 @@ function deckFor(mode, p){
 
 function newGame(mode, first){
   const { state, events } = Engine.createGame({
-    decks: [deckFor(mode,0), deckFor(mode,1)], first, seed: Math.floor(Math.random() * 2**32),
+    decks: [deckFor(mode,0), deckFor(mode,1)], first, seed: Math.floor(Math.random() * 2**32), now: Date.now(),
   });
   st = state; match = { mode, log: [] };
   log('対局開始！');
@@ -40,6 +40,7 @@ function newGame(mode, first){
   startBgm();
   handleEvents(events);
   afterTurnStart();
+  startClockTick();
 }
 
 /* ---------- イベント → ログ・効果音 ---------- */
@@ -49,6 +50,7 @@ function describe(ev){
   switch(ev.type){
     case 'turnStart': return `${who}のターン（マナ${ev.mana}）`;
     case 'deckEmpty': return `${who}の山札が切れているため引けません`;
+    case 'pass':      return `${who}：動かせる駒がないためパス`;
     case 'summon':    return ev.ambush ? `${who}：${N(ev.card)}を伏兵として送り込んだ！` : `${who}：${N(ev.card)}を援軍に出した`;
     case 'move':
       if(!ev.captured) return `${who}：${N(ev.piece)}が移動した`;
@@ -71,7 +73,8 @@ function describe(ev){
       }
       return `${who}：【${N(ev.card)}】`;
     case 'gameOver':
-      if(ev.reason === 'resign') return `${pname(1-ev.winner)}が降参した`;
+      if(ev.reason === 'resign')  return `${pname(1-ev.winner)}が降参した`;
+      if(ev.reason === 'timeout') return `${pname(1-ev.winner)}の持ち時間が切れた`;
       return null;
   }
   return null;
@@ -89,13 +92,14 @@ function handleEvents(events){
 function dispatch(action){
   if(!st || st.over) return false;
   if(match.mode === 'online') return sendAction(action);     // オンラインはサーバーが審判
-  const res = Engine.apply(st, { ...action, p: st.cur });
+  const res = Engine.apply(st, { ...action, p: st.cur }, Date.now());
   if(!res.ok){ setPrompt(res.error, true); render(); return false; }
   handleEvents(res.events);
   if(res.events.some(e => e.type === 'turnStart')) afterTurnStart();
   return true;
 }
-function endTurn(){ dispatch({ type:'endTurn' }); }
+// 動かせる駒がないときだけ使えるパス
+function passTurn(){ dispatch({ type:'endTurn' }); }
 
 function afterTurnStart(){
   clearSel();
@@ -108,18 +112,50 @@ function afterTurnStart(){
   else render();
 }
 
-// CPUのターン：次の操作を1つずつ聞いて、少し間をあけながら実行する
+// CPUのターン：次の操作を1つずつ聞いて、少し間をあけながら実行する（駒を動かすと自動でターンが終わる）
 async function runCpu(){
-  const g = st;
-  while(st === g && !st.over){
-    const a = Cpu.nextAction(st, st.cur);
-    if(a.type === 'endTurn') break;
-    const res = Engine.apply(st, a);
-    if(!res.ok) break;
+  const g = st, seat = st.cur;
+  while(st === g && !st.over && st.cur === seat){
+    const a = Cpu.nextAction(st, seat);
+    const res = Engine.apply(st, a, Date.now());
+    if(!res.ok){ Engine.forfeit(st, seat, 'resign'); break; }   // 念のため（通常は起きない）
     handleEvents(res.events);
-    render(); await sleep(550);
+    render();
+    if(st.cur === seat) await sleep(550);
     if(st !== g) throw 'abort';
   }
   ui.cpuBusy = false;
-  if(st.over){ render(); showResult(); } else endTurn();
+  if(st.over){ render(); showResult(); } else afterTurnStart();
+}
+
+/* ---------- 持ち時間（この端末で遊ぶ対局） ---------- */
+// 画面の時計を0.25秒ごとに更新し、時間切れを判定する。オンラインではサーバーが判定する
+let clockTimer = null;
+const clockNow = () => (match && match.mode === 'online') ? serverNow() : Date.now();
+function startClockTick(){
+  if(clockTimer) return;
+  clockTimer = setInterval(() => {
+    if(!st || !match){ clearInterval(clockTimer); clockTimer = null; return; }
+    updateClocks();
+    if(match.mode !== 'online' && !st.over && !ui.handoff && Engine.isTimeUp(st, Date.now())){
+      const g = st;
+      handleEvents(Engine.forfeit(st, st.cur, 'timeout').events);
+      ui.cpuBusy = false; clearSel(); render();
+      setTimeout(() => { if(st === g) showResult(); }, 400);
+    }
+  }, 250);
+}
+const fmtTime = ms => { const s = Math.max(0, Math.ceil(ms / 1000)); return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`; };
+// バーに出す時計：手番の人は「このターンの残り秒数 / 持ち時間」、相手は持ち時間だけ
+function clockHtml(p){
+  if(!st || !st.clock) return '';
+  const info = Engine.clockInfo(st, clockNow()); if(!info) return '';
+  const bank = `<span class="bank${info.bank[p] < 60000 ? ' low' : ''}">${fmtTime(info.bank[p])}</span>`;
+  if(st.over || st.cur !== p || info.paused) return bank;
+  if(info.graceLeft > 0) return `<span class="grace">${Math.ceil(info.graceLeft/1000)}秒</span>${bank}`;
+  return `<span class="grace out">0秒</span>${bank.replace('class="bank', 'class="bank ticking')}`;
+}
+function updateClocks(){
+  document.querySelectorAll('.clock').forEach(el => { el.innerHTML = clockHtml(Number(el.dataset.p)); });
+  if(typeof opponentDisconnectText === 'function'){ const d = $('#oppDisc'); if(d) d.textContent = opponentDisconnectText(); }
 }

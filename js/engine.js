@@ -166,11 +166,9 @@
     const card = findCard(state, p, cardId); if(!card) return '手札にないカードです';
     const d = CARDS[card.key];
     if(d.kind !== 'cmd') return '指令カードではありません';
+    if(state.moved) return '駒を動かした後は指令を使えません';
     if(d.cost > state.players[p].mana) return 'マナが足りません';
-    if(card.key === 'fukuhei'){
-      if(state.moved) return '駒を動かした後は援軍を出せません';
-      if(state.ambush) return 'すでに伏兵の効果が出ています';
-    }
+    if(card.key === 'fukuhei' && state.ambush) return 'すでに伏兵の効果が出ています';
     const ok = (d.targets || []).every((_, i) => cmdTargets(state, p, card.key, Array(i).fill(null)).length > 0);
     if(!ok) return `【${d.name}】対象にできる駒がありません`;
     return null;
@@ -186,6 +184,43 @@
     return null;
   }
 
+  // 今動かせる駒（移動・砲兵の撃ち出し）が1つでもあるか
+  function hasLegalMove(state, p){
+    if(state.movesLeft <= 0) return false;
+    for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+      const pc = state.board[r][c];
+      if(!pc || pc.owner!==p || state.locked[pc.id]) continue;
+      if(movesFor(state.board,r,c).length || launchesFor(state.board,r,c).length) return true;
+    }
+    return false;
+  }
+
+  /* ---------- 持ち時間 ----------
+     1ターンに TURN_SEC 秒は自由に使える。それを過ぎた分は、各プレイヤーの持ち時間（BANK_SEC）から減る。
+     持ち時間が0になったら負け。時刻（ミリ秒）は呼び出し側から渡す */
+  function clockUsed(state, now){
+    const k = state.clock; if(!k || k.turnStart == null) return 0;
+    return Math.max(0, now - k.turnStart - k.graceMs);
+  }
+  // 時計の状態：{ graceLeft: このターンの自由時間の残り, bank: [各プレイヤーの持ち時間の残り] }（ミリ秒）
+  function clockInfo(state, now){
+    const k = state.clock; if(!k) return null;
+    const bank = k.bankMs.slice();
+    if(!state.over) bank[state.cur] = Math.max(0, bank[state.cur] - clockUsed(state, now));
+    const graceLeft = state.over || k.turnStart == null ? 0 : Math.max(0, k.turnStart + k.graceMs - now);
+    return { graceLeft, bank, paused: k.turnStart == null };
+  }
+  // 今の手番の人の時間が切れる時刻
+  const timeUpAt = state => state.clock && state.clock.turnStart != null ? state.clock.turnStart + state.clock.graceMs + state.clock.bankMs[state.cur] : Infinity;
+  const isTimeUp = (state, now) => !state.over && now >= timeUpAt(state);
+  // 手番の時計を今から動かし直す（2人対戦で、交代の画面を閉じたときなど）
+  function restartTurnClock(state, now){ if(state.clock) state.clock.turnStart = now; }
+  function chargeClock(state, now){
+    const k = state.clock; if(!k) return;
+    k.bankMs[state.cur] = Math.max(0, k.bankMs[state.cur] - clockUsed(state, now));
+    k.turnStart = null;
+  }
+
   /* ---------- 対局の進行 ---------- */
   function draw(state, p, n, events){
     const pl = state.players[p]; let cnt = 0;
@@ -194,8 +229,9 @@
     if(cnt < n) events.push({ type:'deckEmpty', p });
     return cnt;
   }
-  function startTurn(state, events){
+  function startTurn(state, events, now){
     const p = state.cur, pl = state.players[p];
+    if(state.clock) state.clock.turnStart = now;
     pl.turns++;
     const base = p === state.first ? CONFIG.MANA_FIRST : CONFIG.MANA_SECOND;
     pl.maxMana = Math.min(CONFIG.MANA_MAX, base + pl.turns - 1);
@@ -214,7 +250,7 @@
   }
 
   // 新しい対局。decks: [先手側(p0)のデッキ, p1のデッキ]  first: 先攻のプレイヤー  seed: 乱数の種
-  function createGame({ decks, first = 0, seed = 1 }){
+  function createGame({ decks, first = 0, seed = 1, now = Date.now(), turnMs = CONFIG.TURN_SEC*1000, bankMs = CONFIG.BANK_SEC*1000 }){
     const board = Array.from({length:ROWS}, () => Array(COLS).fill(null));
     const state = {
       version: 1, rows: ROWS, cols: COLS,
@@ -227,6 +263,7 @@
       locked: {},                 // このターン動けない駒 { 駒id: 理由 }
       ambush: false,              // 伏兵の効果中（次の援軍を陣以外に出す）
       bindNext: [{}, {}],         // 次のターンに動けなくなる駒（プレイヤーごと）
+      clock: { graceMs: turnMs, bankMs: [bankMs, bankMs], turnStart: null },   // 持ち時間
     };
     // 王は自分の陣の真ん中（列数が偶数のときは、お互い自分から見て中央の右寄り＝点対称）
     const mid = Math.floor(COLS/2);
@@ -235,12 +272,25 @@
     for(const p of [0,1]) state.players[p].deck = buildDeck(state, decks[p]);
     const events = [{ type:'start', first }];
     for(const p of [0,1]) draw(state, p, CONFIG.HAND_START, []);
-    startTurn(state, events);
+    startTurn(state, events, now);
     return { state, events };
   }
 
   // 操作を反映する。成功なら { ok:true, events }、失敗なら { ok:false, error }（state は変わらない）
-  function apply(state, action){
+  // 手番を相手に渡す（持ち時間を精算してから）
+  function passTurn(state, events, now){
+    chargeClock(state, now);
+    events.push({ type:'turnEnd', p: state.cur });
+    state.cur = 1 - state.cur;
+    startTurn(state, events, now);
+  }
+  // 駒を動かしたあと：動かせる回数を使い切った（または動かせる駒がない）なら自動でターン終了
+  function afterMove(state, events, now){
+    if(!state.over && !hasLegalMove(state, state.cur)) passTurn(state, events, now);
+  }
+
+  // now：今の時刻（ミリ秒）。持ち時間の計算に使う
+  function apply(state, action, now = Date.now()){
     const fail = error => ({ ok:false, error, events:[] });
     if(!action || typeof action !== 'object') return fail('不正な操作です');
     if(state.over) return fail('対局は終了しています');
@@ -250,6 +300,7 @@
 
     if(action.type === 'resign'){ finish(state, 1-p, 'resign', events); return { ok:true, events }; }
     if(p !== state.cur) return fail('相手の手番です');
+    if(isTimeUp(state, now)) return fail('持ち時間が切れています');
 
     switch(action.type){
       case 'summon': {
@@ -314,6 +365,7 @@
             if(CARDS[cap.type].binds){ state.bindNext[p][pc.id] = '縛兵'; events.push({ type:'bound', p, piece: pc.type }); }
           }
         }
+        afterMove(state, events, now);
         break;
       }
       case 'launch': {
@@ -333,11 +385,14 @@
           if(cap.type === 'king') finish(state, p, 'king', events);
           else state.players[p].hand.push({ id: cap.id, key: baseType(cap.type) });
         }
+        afterMove(state, events, now);
         break;
       }
       case 'endTurn': {
-        state.cur = 1 - state.cur;
-        startTurn(state, events);
+        // 駒は必ず1回動かす。動かせる駒が1つもないときだけ、パスしてターンを終えられる
+        if(hasLegalMove(state, p)) return fail('駒を1つ動かしてください（動かすとターン終了です）');
+        events.push({ type:'pass', p });
+        passTurn(state, events, now);
         break;
       }
       default: return fail('不明な操作です');
@@ -348,7 +403,10 @@
   // 時間切れ・切断などで負けにする（サーバー用）
   function forfeit(state, loser, reason){
     const events = [];
-    if(!state.over) finish(state, 1-loser, reason, events);
+    if(!state.over){
+      if(state.clock && reason === 'timeout') state.clock.bankMs[loser] = 0;
+      finish(state, 1-loser, reason, events);
+    }
     return { ok:true, events };
   }
 
@@ -371,7 +429,8 @@
     cardLimit, deckTotal, deckErrors,
     movesFor, launchesFor, attacked, findKing, guarded,
     inCheck, lockReason, isBound, findCard,
-    summonTargets, summonBlock, canSummon, cmdTargets, cmdBlock, canCmd, moveBlock,
+    summonTargets, summonBlock, canSummon, cmdTargets, cmdBlock, canCmd, moveBlock, hasLegalMove,
+    clockInfo, timeUpAt, isTimeUp, restartTurnClock,
     createGame, apply, forfeit, viewFor,
   };
 });

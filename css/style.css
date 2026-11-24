@@ -52,7 +52,7 @@ button{font:inherit;border:none;border-radius:10px;padding:10px 14px;font-weight
 button.primary{background:var(--accent);color:#2a1a08;}
 button:disabled{opacity:.4;}
 #controls button{flex:1;}
-#btnEnd{flex:2;}
+#btnPass{flex:2;}
 #log{width:100%;font-size:11px;color:var(--muted);line-height:1.5;min-height:50px;}
 #overlay{position:fixed;inset:0;background:rgba(10,6,4,.92);display:flex;align-items:center;justify-content:center;z-index:10;padding:20px;}
 #overlay.hidden{display:none;}
@@ -149,5 +149,11 @@ button:disabled{opacity:.4;}
 .warn-text{color:#ff8a80 !important;font-weight:700;min-height:1em;}
 .hint{font-size:12px !important;}
 .room-code{font-size:44px;font-weight:800;letter-spacing:8px;color:var(--accent);margin:10px 0;font-variant-numeric:tabular-nums;}
-.clock{margin-left:8px;font-size:12px;font-weight:700;color:#7fc8ff;font-variant-numeric:tabular-nums;}
+/* 持ち時間：このターンの残り秒数（grace）と、持ち時間の合計（bank） */
+.clock{margin-left:8px;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;display:inline-flex;gap:6px;align-items:baseline;}
+.clock .grace{color:#7fc8ff;}
+.clock .grace.out{color:var(--muted);}
+.clock .bank{color:var(--muted);}
+.clock .bank.ticking{color:#ffb86b;}
+.clock .bank.low{color:#ff8a80;}
 #oppDisc{width:100%;color:#ffb86b;font-weight:700;font-size:12px;}

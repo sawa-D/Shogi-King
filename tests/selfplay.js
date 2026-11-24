@@ -6,12 +6,12 @@ const Cpu = require('../js/cpu.js');
 const games = Number(process.argv[2]) || 20;
 let failures = 0, finished = 0;
 for(let g=0; g<games; g++){
-  const { state } = E.createGame({ decks:[E.CONFIG.DECK, E.CONFIG.DECK], first: g%2, seed: 1000+g });
+  const { state } = E.createGame({ decks:[E.CONFIG.DECK, E.CONFIG.DECK], first: g%2, seed: 1000+g, now: 0 });
   let steps = 0;
   while(!state.over && steps < 3000){
     const a = Cpu.nextAction(state, state.cur);
-    const r = E.apply(state, a);
-    if(!r.ok){ failures++; console.log('不正な操作:', a, r.error); E.apply(state, { type:'endTurn', p:state.cur }); }
+    const r = E.apply(state, a, 0);   // 時刻は0で固定（持ち時間を減らさない）
+    if(!r.ok){ failures++; console.log('不正な操作:', a, r.error); break; }
     JSON.parse(JSON.stringify(state));
     steps++;
   }

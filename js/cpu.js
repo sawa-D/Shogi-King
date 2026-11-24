@@ -2,7 +2,7 @@
 /* =====================================================================
    CPUの思考
    - 盤面を見て「次にする操作」を1つ返すだけ（画面には触れない）
-   - 1ターンの間、nextAction() を何度も呼び、endTurn が返ってきたらターン終了
+   - 1ターンの間、nextAction() を何度も呼ぶ。駒を動かすと自動でターンが終わる
    - エンジンと同じくブラウザでもサーバー（Node.js）でも使える
    ===================================================================== */
 (function(root, factory){
@@ -111,11 +111,9 @@
       .sort((a,b)=>CARDS[b.key].cost-CARDS[a.key].cost + (Math.random()-.5)*.5);
     if(cands.length){ const s = pickSpot(state, p, E.summonTargets(state,p), cands[0].key); return { type:'summon', p, cardId:cands[0].id, r:s.r, c:s.c }; }
     if((c = card('shingun')) && !state.moved) return cmd(c);
-    // 移動
-    if(state.movesLeft > 0){
-      const m = bestMove(state, p);
-      if(m && m.score >= -40) return m.action;
-    }
+    // 移動（駒は必ず1回動かす。動かすと自動でターン終了。動かせる駒がなければパス）
+    const m = bestMove(state, p);
+    if(m) return m.action;
     return { type:'endTurn', p };
   }
 

@@ -8,6 +8,8 @@ var CONFIG = {
   MANA_FIRST: 1,      // 先攻の開始マナ
   MANA_SECOND: 2,     // 後攻の開始マナ
   MANA_MAX: 3,        // マナ上限
+  TURN_SEC: 30,       // 1ターンの持ち時間（秒）。これを過ぎると、下の持ち時間から減っていく
+  BANK_SEC: 300,      // 各プレイヤーの持ち時間の合計（秒）。0になったら負け
   DECK_SIZE: 20,       // デッキの枚数（ちょうどこの枚数）
   MAX_COPIES: 2,       // 同じカードの上限枚数
   LIMITS: { hi:1, kaku:1 },  // カードごとの上限（MAX_COPIESより優先）
