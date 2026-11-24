@@ -176,8 +176,10 @@ function onServerMessage(m){
   ui.pending = false;
   handleEvents(m.events);
   if(m.events.some(e => e.type === 'turnStart')) clearSel();
+  const myTurnNow = m.events.some(e => e.type === 'turnStart' && e.p === m.room.you);
   startClockTick();
   render();
+  if(myTurnNow && !st.over) showTurnBanner();
   if(st.over && (m.events.some(e => e.type === 'gameOver') || firstView)) setTimeout(() => { if(isOnline() && st.over) showResult(); }, 400);
   else if(st.over && $('#rmWait')) showResult();  // 再戦待ちの表示を更新
 }

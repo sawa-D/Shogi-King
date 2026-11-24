@@ -163,6 +163,16 @@ function render(){
 }
 
 /* ---------- 画面 ---------- */
+// 自分の番になったときに大きく出す「YOUR TURN」（触っても邪魔にならない）
+let turnBannerTimer = null;
+function showTurnBanner(){
+  let el = $('#turnBanner');
+  if(!el){ el = document.createElement('div'); el.id = 'turnBanner'; el.setAttribute('role','status'); el.innerHTML = '<span>YOUR TURN</span>'; document.body.appendChild(el); }
+  el.classList.remove('show'); void el.offsetWidth;   // アニメーションを最初から
+  el.classList.add('show');
+  clearTimeout(turnBannerTimer);
+  turnBannerTimer = setTimeout(() => el.classList.remove('show'), 1300);
+}
 // 画面中央に少しの間だけ出るお知らせ
 let toastTimer = null;
 function showToast(msg, isError){
@@ -235,7 +245,7 @@ function showHandoff(){
   showOverlay(`<h2>${pname(st.cur)}の番です</h2><p>相手に画面が見えないように交代してください</p>
     <div class="btns"><button class="primary" id="hb">開始</button></div>`);
   // 交代の画面を閉じたときから、その人の持ち時間を数え始める
-  $('#hb').onclick = () => { ui.handoff=false; Engine.restartTurnClock(st, Date.now()); hideOverlay(); render(); };
+  $('#hb').onclick = () => { ui.handoff=false; Engine.restartTurnClock(st, Date.now()); hideOverlay(); render(); showTurnBanner(); };
 }
 // 決着の理由（オンライン用）
 function resultReason(youWin){

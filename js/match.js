@@ -109,7 +109,7 @@ function afterTurnStart(){
     setTimeout(() => { if(st === g) runCpu().catch(e => { if(e !== 'abort') throw e; }); }, 650);
   }
   else if(match.mode === '2p'){ render(); showHandoff(); }
-  else render();
+  else { render(); if(!st.over) showTurnBanner(); }
 }
 
 // CPUのターン：次の操作を1つずつ聞いて、少し間をあけながら実行する（駒を動かすと自動でターンが終わる）
